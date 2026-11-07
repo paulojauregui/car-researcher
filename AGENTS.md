@@ -1,4 +1,4 @@
-# 🤖 AGENTS.md — AI & Developer Onboarding Guide
+# AGENTS.md — AI & Developer Onboarding Guide
 
 > **For LLMs and Future Developers:** Read this document first before making changes to this codebase. It documents architectural invariants, design patterns, testing protocols, and step-by-step recipes for common extensions.
 
