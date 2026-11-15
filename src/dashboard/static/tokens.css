@@ -1,0 +1,300 @@
+/* ==========================================================================
+   car-researcher Design Token Contract (v2-market-intelligence)
+   Aesthetic: Precision Automotive Telemetry & Quantitative Valuation Desk
+   Source of truth: docs/DESIGN_SYSTEM.md Section 2.2
+   Constraints: zero external CDN references, zero emoji glyphs.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ------------------------------------------------------------------------
+     1. 4-Tier Dark Surface Elevation Hierarchy & Overlay
+     ------------------------------------------------------------------------ */
+  --bg-canvas: #080B10;            /* Tier 0: Viewport root canvas */
+  --bg-inset: #0B0F15;             /* Recessed well: inputs, VIN chips, table head alt */
+  --bg-surface: #0F141C;           /* Tier 1: Primary cards, KPI tiles, filter bar, panels */
+  --bg-surface-hover: #151C26;     /* Tier 2: Hover rows, interactive sub-wells, secondary btns */
+  --bg-elevated: #1B2330;          /* Tier 3: Sticky headers, slide-over drawer, tooltips, tray */
+  --bg-overlay: rgba(4, 7, 12, 0.80); /* Backdrop scrim behind drawer and modal */
+  --bg-glass: rgba(8, 11, 16, 0.92);   /* Frosted translucent glass: topbar, sticky headers */
+
+  /* ------------------------------------------------------------------------
+     2. Structural Hairline Border Hierarchy
+     ------------------------------------------------------------------------ */
+  --border-subtle: rgba(148, 163, 184, 0.12);  /* Internal dividers, table row hairlines */
+  --border-default: rgba(148, 163, 184, 0.22); /* Card frames, panels, tab rails */
+  --border-strong: rgba(148, 163, 184, 0.55);  /* Form controls, interactive outlines (>= 3:1) */
+  --border-focus: #38BDF8;                     /* High-visibility keyboard focus ring */
+
+  /* ------------------------------------------------------------------------
+     3. Ink / Text Hierarchy (WCAG 2.2 AA >= 4.5:1 across all 4 surface tiers)
+     ------------------------------------------------------------------------ */
+  --text-primary: #F1F5F9;         /* Primary metrics, titles, active tab labels */
+  --text-secondary: #B4C0D0;       /* Body metadata, axis ticks, column headers */
+  --text-muted: #8B9BB0;           /* Timestamps, captions, placeholders, helper copy */
+  --text-inverse: #080B10;         /* Dark ink for filled --accent-primary buttons */
+
+  /* ------------------------------------------------------------------------
+     4. Brand & Telemetry Accent Tokens
+     ------------------------------------------------------------------------ */
+  --accent-primary: #0EA5E9;              /* Primary CTA fill (with --text-inverse) */
+  --accent-primary-hover: #38BDF8;        /* Hover CTA fill, interactive link emphasis */
+  --accent-primary-bg: rgba(14, 165, 233, 0.14);
+  --accent-telemetry: #22D3EE;            /* OLS frontier line, telemetry pulse, crosshair */
+  --accent-telemetry-bg: rgba(34, 211, 238, 0.12);
+
+  /* ------------------------------------------------------------------------
+     5. Semantic Automotive Valuation Status Tokens
+     ------------------------------------------------------------------------ */
+  /* Excellent / BELOW P25 / Strong Buy (>= 85) / Clean Title */
+  --status-excellent: #34D399;
+  --status-excellent-bg: rgba(16, 185, 129, 0.14);
+  --status-excellent-border: rgba(52, 211, 153, 0.36);
+
+  /* Info / Good Value (75..84.9) / USED_EV_TAX_CREDIT / Active Telemetry */
+  --status-info: #38BDF8;
+  --status-info-bg: rgba(14, 165, 233, 0.14);
+  --status-info-border: rgba(56, 189, 248, 0.36);
+
+  /* Price Cut / Motivated Seller / FRESH_PRICE_CUT / HIGH_LEVERAGE */
+  --status-cut: #FBBF24;
+  --status-cut-bg: rgba(245, 158, 11, 0.14);
+  --status-cut-border: rgba(251, 191, 36, 0.38);
+
+  /* Warn / STALE_INVENTORY_30D / MODERATE Risk / Degraded DB Fallback */
+  --status-warn: #FB923C;
+  --status-warn-bg: rgba(249, 115, 22, 0.14);
+  --status-warn-border: rgba(251, 146, 60, 0.38);
+
+  /* Danger / Overpriced (> P75) / Salvage / ELEVATED Safety Risk / Scan Error */
+  --status-danger: #F87171;
+  --status-danger-bg: rgba(239, 68, 68, 0.15);
+  --status-danger-border: rgba(248, 113, 113, 0.38);
+
+  /* ------------------------------------------------------------------------
+     5b. Chart Palette & Telemetry Visualization Tokens
+     ------------------------------------------------------------------------ */
+  --chart-ols: var(--accent-telemetry);
+  --chart-p25: var(--status-excellent);
+  --chart-p50: var(--text-muted);
+  --chart-gridline: var(--border-subtle);
+  --chart-axis: var(--border-strong);
+  --chart-buyzone-bg: rgba(52, 211, 153, 0.08);
+  --chart-node-excellent: var(--status-excellent);
+  --chart-node-good: var(--accent-primary-hover);
+  --chart-node-fair: var(--status-cut);
+  --chart-node-overpriced: var(--status-danger);
+
+  /* ------------------------------------------------------------------------
+     6. Typography & Tabular Precision Scale
+     ------------------------------------------------------------------------ */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Monaco,
+    Consolas, "Liberation Mono", monospace;
+
+  --text-2xs: 0.6875rem;   /* 11px: micro labels, badge text, table headers */
+  --text-xs: 0.75rem;      /* 12px: dense table cells, filter controls, metadata */
+  --text-sm: 0.8125rem;    /* 13px: secondary body, drawer sections */
+  --text-base: 0.875rem;   /* 14px: primary UI copy, vehicle titles */
+  --text-lg: 1rem;         /* 16px: section titles, drawer headings */
+  --text-xl: 1.25rem;      /* 20px: modal/drawer hero price */
+  --text-2xl: 1.5rem;      /* 24px: KPI figures, primary card price */
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.45;
+  --tracking-tight: -0.015em;
+  --tracking-label: 0.06em;
+
+  /* ------------------------------------------------------------------------
+     7. 4px / 8px Spatial Scale
+     ------------------------------------------------------------------------ */
+  --space-1: 0.25rem;   /*  4px */
+  --space-2: 0.5rem;    /*  8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+
+  /* ------------------------------------------------------------------------
+     8. Radii, Layout Caps & Elevation Shadows
+     ------------------------------------------------------------------------ */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --container-max: 1600px;
+
+  --shadow-elevated: 0 12px 32px rgba(2, 6, 12, 0.55);
+  --shadow-drawer: -12px 0 36px rgba(2, 6, 12, 0.65);
+  --shadow-tray: 0 -8px 24px rgba(2, 6, 12, 0.55);
+
+  /* ------------------------------------------------------------------------
+     9. Z-Index Layers
+     ------------------------------------------------------------------------ */
+  --z-base: 1;
+  --z-sticky: 20;      /* Top app header, sticky table column headers */
+  --z-tray: 35;        /* Fixed bottom Compare Pin Tray (#compare-tray) */
+  --z-overlay: 40;     /* Scrim behind slide-over drawer & modals */
+  --z-drawer: 50;      /* Slide-over valuation drawer & compare modal */
+  --z-tooltip: 60;     /* Interactive SVG scatter chart focus tooltip */
+
+  /* ------------------------------------------------------------------------
+     10. Motion Tokens
+     ------------------------------------------------------------------------ */
+  --ease-telemetry: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-drawer: 220ms;
+}
+
+/* ==========================================================================
+   Base Reset, Overflow Protection & Tabular Numerals Enforcement
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-primary-hover);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Strict Tabular Numerals Utility & Domain Selectors */
+.tabular-nums,
+[data-numeric],
+.kpi-value,
+.price-readout,
+.delta-readout,
+.cohort-stat,
+.metric-cell,
+.score-pill,
+.vin-chip,
+.dom-readout,
+.tco-value,
+.epa-value,
+.chart-tick,
+.chart-tooltip-val {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+.mono-readout,
+.vin-chip {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* ==========================================================================
+   Accessibility Helpers
+   ========================================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.skip-link:focus-visible {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  width: auto;
+  height: auto;
+  z-index: calc(var(--z-tooltip) + 10);
+  padding: var(--space-2) var(--space-3);
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-primary-bg);
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Reduced Motion Contract
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-normal: 0.01ms;
+    --duration-drawer: 0.01ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
