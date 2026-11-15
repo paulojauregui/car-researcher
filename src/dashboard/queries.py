@@ -462,20 +462,30 @@ class DashboardRepository:
 
             filtered.append(d)
 
-        if sort_by == "savings_asc":
-            filtered.sort(key=lambda x: (int(x.get("price_delta") or 0), -float(x.get("deal_score") or 0.0)))
-        elif sort_by == "price_asc":
-            filtered.sort(key=lambda x: (int(x.get("price") or 0), -float(x.get("deal_score") or 0.0)))
-        elif sort_by == "mileage_asc":
-            filtered.sort(key=lambda x: (int(x.get("mileage") or 0), -float(x.get("deal_score") or 0.0)))
-        elif sort_by == "distance_asc":
+        if sort_by in ("savings_asc", "savings_desc"):
+            filtered.sort(
+                key=lambda x: (int(x.get("price_delta") or 0), -float(x.get("deal_score") or 0.0)),
+                reverse=(sort_by == "savings_desc"),
+            )
+        elif sort_by in ("price_asc", "price_desc"):
+            filtered.sort(
+                key=lambda x: (int(x.get("price") or 0), -float(x.get("deal_score") or 0.0)),
+                reverse=(sort_by == "price_desc"),
+            )
+        elif sort_by in ("mileage_asc", "mileage_desc"):
+            filtered.sort(
+                key=lambda x: (int(x.get("mileage") or 0), -float(x.get("deal_score") or 0.0)),
+                reverse=(sort_by == "mileage_desc"),
+            )
+        elif sort_by in ("distance_asc", "distance_desc"):
             filtered.sort(
                 key=lambda x: (
                     float(x["distance_miles"]) if x.get("distance_miles") is not None else 999.0,
                     -float(x.get("deal_score") or 0.0),
-                )
+                ),
+                reverse=(sort_by == "distance_desc"),
             )
-        elif sort_by == "leverage_desc":
+        elif sort_by in ("leverage_desc", "leverage_asc"):
             filtered.sort(
                 key=lambda x: (
                     float(
@@ -485,28 +495,28 @@ class DashboardRepository:
                     ),
                     float(x.get("deal_score") or 0.0),
                 ),
-                reverse=True,
+                reverse=(sort_by == "leverage_desc"),
             )
-        elif sort_by == "dom_desc":
+        elif sort_by in ("dom_desc", "dom_asc"):
             filtered.sort(
                 key=lambda x: (
                     int(x.get("days_on_market") or x.get("raw_data", {}).get("days_on_market") or 0),
                     float(x.get("deal_score") or 0.0),
                 ),
-                reverse=True,
+                reverse=(sort_by == "dom_desc"),
             )
-        elif sort_by == "msrp_off_desc":
+        elif sort_by in ("msrp_off_desc", "msrp_off_asc"):
             filtered.sort(
                 key=lambda x: (
                     float(x.get("msrp_discount_pct") or x.get("analytics", {}).get("msrp_discount_pct") or 0.0),
                     float(x.get("deal_score") or 0.0),
                 ),
-                reverse=True,
+                reverse=(sort_by == "msrp_off_desc"),
             )
         else:
             filtered.sort(
                 key=lambda x: (float(x.get("deal_score") or 0.0), -int(x.get("price_delta") or 0)),
-                reverse=True,
+                reverse=(sort_by != "score_asc"),
             )
 
         return filtered
