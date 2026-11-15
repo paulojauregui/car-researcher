@@ -12,6 +12,7 @@ Post-conditions:
     - Strictly zero emojis across all code, docstrings, comments, and outputs.
 """
 
+import asyncio
 import csv
 from datetime import datetime
 import io
@@ -774,10 +775,19 @@ class DashboardRepository:
             return _MODEL_PROFILE_CACHE[cache_key]
 
         try:
-            client = GovAPIClient(timeout=5.0)
-            recalls = await client.get_recalls(make, clean_model, year)
-            complaints = await client.get_complaints(make, clean_model, year)
-            epa_options = await client.get_epa_fuel_economy(make, clean_model, year)
+            client = GovAPIClient(timeout=2.5)
+            results = await asyncio.gather(
+                client.get_recalls(make, clean_model, year),
+                client.get_complaints(make, clean_model, year),
+                client.get_epa_fuel_economy(make, clean_model, year),
+                return_exceptions=True,
+            )
+            recalls = results[0] if isinstance(results[0], list) else []
+            complaints = results[1] if isinstance(results[1], list) else []
+            epa_options = results[2] if isinstance(results[2], list) else []
+            for err_candidate in results:
+                if isinstance(err_candidate, Exception):
+                    logger.warning(f"Partial Gov API lookup failed for {make} {clean_model} {year}: {err_candidate}")
 
             crash_count = sum(1 for c in complaints if getattr(c, "crash", False))
             fire_count = sum(1 for c in complaints if getattr(c, "fire", False))
@@ -951,7 +961,10 @@ class DashboardRepository:
         year = int(deal.get("year") or 2023)
 
         try:
-            profile = await self.get_model_intelligence(make, model, year)
+            profile = await asyncio.wait_for(
+                self.get_model_intelligence(make, model, year),
+                timeout=1.5,
+            )
         except Exception as e:
             logger.warning(f"Model intelligence lookup fallback for {make} {model} {year}: {e}")
             profile = {

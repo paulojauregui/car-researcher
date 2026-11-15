@@ -17,12 +17,16 @@ import {
   formatNumber,
   renderDealsSectionHtml,
   renderWorkbenchLoadingHtml,
+  renderMarketLoadingHtml,
+  renderArbitrageLoadingHtml,
+  renderCompareLoadingHtml,
   renderWorkspaceErrorHtml,
   renderMarketWorkspaceHtml,
   renderArbitrageWorkspaceHtml,
   renderComparatorWorkspaceHtml,
   renderAnalysisDrawerHtml,
   renderCompareTrayHtml,
+  renderDegradedBannerHtml,
   renderScanStatusBannerHtml,
 } from './views.js';
 
@@ -184,17 +188,28 @@ function getDealsByIdMap() {
  */
 export function updateCompareTray() {
   const tray = document.getElementById('compare-tray');
+  const mainEl = document.getElementById('main-content');
   if (!tray) {
+    if (mainEl) {
+      mainEl.classList.remove('is-tray-visible');
+    }
     return;
   }
-  if (state.pinnedIds.size === 0) {
+  const shouldHide = state.pinnedIds.size === 0 || state.activeWorkspace === 'compare';
+  if (shouldHide) {
     tray.hidden = true;
     tray.innerHTML = '';
+    if (mainEl) {
+      mainEl.classList.remove('is-tray-visible');
+    }
     return;
   }
   const dealsById = getDealsByIdMap();
   tray.innerHTML = renderCompareTrayHtml(dealsById, Array.from(state.pinnedIds));
   tray.hidden = false;
+  if (mainEl) {
+    mainEl.classList.add('is-tray-visible');
+  }
 }
 
 /**
@@ -382,6 +397,7 @@ export function switchWorkspace(workspaceKey, shouldFocus = false) {
   }
 
   announce(`Switched to ${activeLabel} workspace`);
+  updateCompareTray();
 
   // Workspace lazy hydration
   if (workspaceKey === 'market') {
@@ -462,7 +478,7 @@ export async function loadMarketWorkspace(forceRefresh = false) {
     return;
   }
 
-  panel.innerHTML = renderWorkbenchLoadingHtml('grid');
+  panel.innerHTML = renderMarketLoadingHtml();
 
   try {
     const cohortParam = encodeURIComponent(state.selectedCohortKey || 'ALL');
@@ -539,7 +555,7 @@ export async function loadArbitrageWorkspace(forceRefresh = false) {
     return;
   }
 
-  panel.innerHTML = renderWorkbenchLoadingHtml('grid');
+  panel.innerHTML = renderMarketLoadingHtml();
 
   try {
     const resp = await fetch('/api/market/dealers', { headers: { Accept: 'application/json' } });
@@ -590,7 +606,7 @@ export async function loadCompareWorkspace(forceRefresh = false) {
     }
   }
 
-  container.innerHTML = renderWorkbenchLoadingHtml('grid');
+  container.innerHTML = renderCompareLoadingHtml();
 
   try {
     const idsParam = Array.from(state.pinnedIds).map(encodeURIComponent).join(',');
@@ -641,6 +657,10 @@ export async function fetchDeals() {
     state.kpis = data.kpis || {};
     if (data.filters) {
       state.filters = Object.assign({}, state.filters, data.filters);
+    }
+    if (data.provenance) {
+      state.provenance = data.provenance;
+      syncDegradedBanner(data.provenance);
     }
     if (container) {
       container.innerHTML = renderDealsSectionHtml(state.deals, state.kpis, state.filters, state.pinnedIds);
@@ -766,13 +786,14 @@ export async function openAnalysisDrawer(listingId) {
   if (!drawerEl) {
     return;
   }
+  const backdropEl = document.getElementById('drawer-backdrop');
   const panelEl = drawerEl.querySelector('.drawer-panel');
 
   if (panelEl) {
     panelEl.innerHTML = `
       <div class="drawer-header p-4 border-b border-default flex items-center justify-between">
-        <span class="control-hint">Loading Vehicle Dossier...</span>
-        <button type="button" id="drawer-close-btn" class="drawer-close" aria-label="Close valuation drawer">&times;</button>
+        <h2 id="drawer-title" class="drawer-title">Loading Vehicle Dossier...</h2>
+        <button type="button" id="drawer-close-btn" class="drawer-close" data-action="close-drawer" aria-label="Close valuation drawer">&times;</button>
       </div>
       <div class="p-8 text-center text-muted">
         <div class="loading-skeleton p-6">Loading valuation analytics...</div>
@@ -780,6 +801,9 @@ export async function openAnalysisDrawer(listingId) {
     `;
   }
 
+  if (backdropEl) {
+    backdropEl.hidden = false;
+  }
   drawerEl.hidden = false;
   const initialCloseBtn = document.getElementById('drawer-close-btn');
   if (initialCloseBtn) {
@@ -807,8 +831,8 @@ export async function openAnalysisDrawer(listingId) {
     if (panelEl) {
       panelEl.innerHTML = `
         <div class="drawer-header p-4 border-b border-default flex items-center justify-between">
-          <span class="text-danger font-semibold">Error Loading Dossier</span>
-          <button type="button" id="drawer-close-btn" class="drawer-close" aria-label="Close valuation drawer">&times;</button>
+          <h2 id="drawer-title" class="drawer-title text-danger">Error Loading Dossier</h2>
+          <button type="button" id="drawer-close-btn" class="drawer-close" data-action="close-drawer" aria-label="Close valuation drawer">&times;</button>
         </div>
         <div class="p-6">
           <p class="text-secondary text-sm">Failed to retrieve valuation analysis for this listing.</p>
@@ -833,12 +857,16 @@ export async function openAnalysisDrawer(listingId) {
  * Pre-conditions:
  *   - None.
  * Post-conditions:
- *   - Hides #analysis-drawer and restores focus to state.lastFocusedTrigger.
+ *   - Hides #analysis-drawer and #drawer-backdrop and restores focus to state.lastFocusedTrigger.
  */
 export function closeAnalysisDrawer() {
   const drawerEl = document.getElementById('analysis-drawer');
   if (drawerEl) {
     drawerEl.hidden = true;
+  }
+  const backdropEl = document.getElementById('drawer-backdrop');
+  if (backdropEl) {
+    backdropEl.hidden = true;
   }
   if (state.lastFocusedTrigger && typeof state.lastFocusedTrigger.focus === 'function') {
     try {
@@ -962,18 +990,52 @@ export function copyVin(vin) {
 }
 
 /**
+ * Synchronizes the degraded/offline fallback banner (#degraded-banner) with provenance metadata.
+ *
+ * Pre-conditions:
+ *   - provenance is an object describing mode ('timescaledb', 'offline-sample', or 'fixture').
+ * Post-conditions:
+ *   - Updates #degraded-banner markup and toggles its hidden state dynamically.
+ *
+ * @param {object} provenance - Backend telemetry provenance metadata.
+ */
+export function syncDegradedBanner(provenance) {
+  const el = document.getElementById('degraded-banner');
+  if (!el) {
+    return;
+  }
+  const prov = provenance || {};
+  const mode = prov.mode || '';
+  if (mode === 'offline-sample') {
+    const temp = document.createElement('div');
+    temp.innerHTML = renderDegradedBannerHtml(prov);
+    const rendered = temp.firstElementChild;
+    if (rendered) {
+      el.innerHTML = rendered.innerHTML;
+      el.className = rendered.className;
+      el.hidden = false;
+    }
+  } else {
+    el.hidden = true;
+  }
+}
+
+/**
  * Checks database connectivity via GET /api/health for degraded mode recovery.
  *
  * Pre-conditions:
  *   - /api/health endpoint is reachable.
  * Post-conditions:
- *   - If mode is nominal, reloads the page; otherwise notifies operator.
+ *   - If mode is nominal, reloads the page; otherwise updates degraded banner and notifies operator.
  */
 export async function checkLiveStatus() {
   try {
     const resp = await fetch('/api/health');
     const data = await resp.json();
-    const mode = data.provenance?.mode || data.mode || '';
+    const prov = data.provenance || { mode: data.mode || '' };
+    state.provenance = prov;
+    syncDegradedBanner(prov);
+    const mode = prov.mode || '';
     if (mode === 'timescaledb') {
       window.location.reload();
     } else {
@@ -1578,25 +1640,113 @@ export function registerWindowHelpers() {
   };
 
   window.openModal = function (listingId) {
-    if (listingId) {
-      openAnalysisDrawer(listingId);
-    } else {
-      const active = document.activeElement;
-      const lid = active ? active.getAttribute('data-listing-id') : null;
-      if (lid) {
-        openAnalysisDrawer(lid);
-      } else {
-        const drawer = document.getElementById('analysis-drawer');
-        if (drawer) {
-          drawer.hidden = false;
-        }
-      }
+    const fallbackId = state.deals && state.deals.length > 0
+      ? String(state.deals[0].id || state.deals[0].platform_id || state.deals[0].vin || '')
+      : '';
+    const targetId = listingId || document.activeElement?.getAttribute('data-listing-id') || fallbackId;
+    if (targetId) {
+      openAnalysisDrawer(targetId);
+      return;
     }
+    const drawer = document.getElementById('analysis-drawer');
+    const backdrop = document.getElementById('drawer-backdrop');
+    const panelEl = drawer ? drawer.querySelector('.drawer-panel') : null;
+    if (panelEl) {
+      panelEl.innerHTML = `
+        <div class="drawer-header p-4 border-b border-default flex items-center justify-between">
+          <h2 id="drawer-title" class="drawer-title">Vehicle Valuation Dossier</h2>
+          <button type="button" id="drawer-close-btn" class="drawer-close" data-action="close-drawer" aria-label="Close valuation drawer">&times;</button>
+        </div>
+        <div class="p-6 text-secondary text-sm">Select a vehicle from the Deal Workbench to inspect its valuation dossier.</div>
+      `;
+    }
+    if (backdrop) backdrop.hidden = false;
+    if (drawer) drawer.hidden = false;
   };
 
   window.closeModal = function () {
     closeAnalysisDrawer();
   };
+}
+
+/**
+ * Handles ArrowLeft/ArrowRight/Home/End keyboard navigation across workbench triage sub-tabs.
+ *
+ * Pre-conditions:
+ *   - e is a KeyboardEvent fired inside .triage-tabs.
+ * Post-conditions:
+ *   - Moves focus across .triage-tab elements with roving tabindex and triggers tab activation.
+ *
+ * @param {KeyboardEvent} e - Keydown event.
+ */
+export function handleTriageTabKeydown(e) {
+  const tabEl = e.target?.closest ? e.target.closest('.triage-tab') : null;
+  if (!tabEl) {
+    return;
+  }
+  const tabList = tabEl.closest('.triage-tabs');
+  if (!tabList) {
+    return;
+  }
+  const tabs = Array.from(tabList.querySelectorAll('.triage-tab'));
+  const currentIdx = tabs.indexOf(tabEl);
+  if (currentIdx === -1 || tabs.length === 0) {
+    return;
+  }
+
+  let nextIdx = -1;
+  if (e.key === 'ArrowRight') {
+    nextIdx = (currentIdx + 1) % tabs.length;
+  } else if (e.key === 'ArrowLeft') {
+    nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
+  } else if (e.key === 'Home') {
+    nextIdx = 0;
+  } else if (e.key === 'End') {
+    nextIdx = tabs.length - 1;
+  } else {
+    return;
+  }
+
+  e.preventDefault();
+  tabs.forEach((btn, idx) => btn.setAttribute('tabindex', idx === nextIdx ? '0' : '-1'));
+  const nextTab = tabs[nextIdx];
+  nextTab.focus();
+  const tabKey = nextTab.getAttribute('data-tab');
+  if (tabKey) {
+    window.setFilterTab(tabKey);
+  }
+}
+
+/**
+ * Synchronizes Workbench DOM controls with hydrated state.filters.
+ *
+ * Pre-conditions:
+ *   - state.filters is populated.
+ * Post-conditions:
+ *   - Input values and view toggle aria-pressed match state.filters.
+ */
+function syncFilterControlsUI() {
+  const f = state.filters || {};
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) {
+      el.value = String(val);
+    }
+  };
+  setVal('search-input', f.q || '');
+  setVal('make-select', f.make || '');
+  setVal('max-price-select', f.max_price || '');
+  setVal('max-mileage-select', f.max_mileage || '');
+  setVal('max-distance-select', f.max_distance || '');
+  setVal('sort-select', f.sort || 'score_desc');
+  setVal('tab-input', f.tab || 'all');
+  setVal('view-input', f.view || 'grid');
+
+  const viewMode = f.view === 'table' ? 'table' : 'grid';
+  const gridBtn = document.getElementById('view-grid-btn');
+  const tableBtn = document.getElementById('view-table-btn');
+  if (gridBtn) gridBtn.setAttribute('aria-pressed', String(viewMode === 'grid'));
+  if (tableBtn) tableBtn.setAttribute('aria-pressed', String(viewMode === 'table'));
 }
 
 /**
@@ -1624,10 +1774,13 @@ export function init() {
     }
   }
 
-  // 2. Restore pins from localStorage
+  // 2. Restore pins and synchronize initial filter/banner UI
   loadPinsFromStorage();
   updateCompareTabBadge();
   updateCompareTray();
+  updatePinButtonsUI();
+  syncFilterControlsUI();
+  syncDegradedBanner(state.provenance);
 
   // 3. Register legacy helpers
   registerWindowHelpers();
@@ -1757,10 +1910,14 @@ export function init() {
     });
   }
 
-  // 10. Global document listeners (click, keyboard shortcuts, focus trapping)
+  // 10. Global document listeners (click, keyboard shortcuts, focus trapping, triage roving tabindex)
   document.addEventListener('click', handleDocumentClick);
   document.addEventListener('keydown', handleGlobalKeydown);
   document.addEventListener('keydown', trapFocusInDrawer);
+  const dealsContainer = document.getElementById('deals-container');
+  if (dealsContainer) {
+    dealsContainer.addEventListener('keydown', handleTriageTabKeydown);
+  }
 
   // 11. Read ?workspace=... URL parameter and activate workspace
   const urlParams = new URLSearchParams(window.location.search);

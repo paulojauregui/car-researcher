@@ -20,7 +20,9 @@ from typing import Dict, List, Optional, Set, Tuple
 import unittest
 
 STATIC_DIR: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "src" / "dashboard" / "static"
+TEMPLATES_DIR: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "src" / "dashboard" / "templates"
 VIEWS_JS_PATH: pathlib.Path = STATIC_DIR / "views.js"
+INDEX_HTML_PATH: pathlib.Path = TEMPLATES_DIR / "index.html"
 
 
 class BalancedDelimiterParser:
@@ -501,15 +503,21 @@ class TestAnalysisDrawerSevenSections(unittest.TestCase):
         self.views_text: str = VIEWS_JS_PATH.read_text(encoding="utf-8")
 
     def test_analysis_drawer_dialog_semantics(self) -> None:
-        """Verify analysis drawer semantics declare role='dialog', aria-modal, and close button.
+        """Verify analysis drawer host shell owns single non-nested dialog semantics and close controls.
 
         Pre-conditions:
-            - views.js loaded.
+            - views.js and index.html loaded.
         Post-conditions:
-            - role="dialog", aria-modal="true", and #drawer-close-btn are present.
+            - index.html declares #analysis-drawer with role="dialog", aria-modal="true",
+              and keeps #drawer-backdrop and #detail-modal outside <aside id="analysis-drawer">.
+            - views.js avoids nested role="dialog" while rendering #drawer-close-btn and #drawer-title.
         """
-        self.assertIn('role="dialog"', self.views_text)
-        self.assertIn('aria-modal="true"', self.views_text)
+        index_html = INDEX_HTML_PATH.read_text(encoding="utf-8")
+        self.assertIn('id="analysis-drawer"', index_html)
+        self.assertIn('role="dialog"', index_html)
+        self.assertIn('aria-modal="true"', index_html)
+        self.assertLess(index_html.index('id="drawer-backdrop"'), index_html.index('id="analysis-drawer"'))
+        self.assertNotIn('<div class="drawer-inner flex flex-col h-full bg-elevated text-primary" role="dialog"', self.views_text)
         self.assertIn('id="drawer-close-btn"', self.views_text)
         self.assertIn('id="drawer-title"', self.views_text)
 
@@ -703,17 +711,22 @@ class TestWorkspacesAndComparator(unittest.TestCase):
         dimensions: List[str] = [
             "Price",
             "vs FMV",
+            "% Off Original MSRP",
             "Deal Score",
             "Mileage",
             "Price / 1k mi",
+            "EPA Range & Efficiency",
             "DOM",
             "Negotiation Leverage",
             "3-Yr TCO Delta",
             "EV Credit",
             "Safety Posture",
+            "Dealer Spread & Distance",
         ]
         for dim in dimensions:
             self.assertIn(f"renderDimensionRow('{dim}'", self.views_text)
+
+        self.assertIn('<th scope="col" class="compare-slot-header">', self.views_text)
 
         self.assertIn("compare-table", self.views_text)
         self.assertIn("compare-cell--winner", self.views_text)
@@ -817,6 +830,63 @@ class TestFiveStateMatrixAndOverlays(unittest.TestCase):
         self.assertIn("retry-scan", self.views_text)
         self.assertIn("dismiss-scan-banner", self.views_text)
         self.assertNotIn("localhost:8080", self.views_text)
+
+    def test_gate3_ux_and_design_remediation_contracts(self) -> None:
+        """Verify Gate 3 UX and Visual Design audit invariants remain intact.
+
+        Pre-conditions:
+            - Dashboard CSS, HTML, Python, and ES module files exist.
+        Post-conditions:
+            - Every CSS class used across templates/views/charts/app resolves in tokens/components CSS.
+            - Unclamped scaleYRaw OLS plotting, snap.time sparklines, and ols_trendline.r2 key are used.
+            - All workspaces own geometry-matched skeletons, tray padding toggles, and non-nested dialogs.
+        """
+        tokens_css = (STATIC_DIR / "tokens.css").read_text(encoding="utf-8")
+        comp_css = (STATIC_DIR / "components.css").read_text(encoding="utf-8")
+        charts_js = (STATIC_DIR / "charts.js").read_text(encoding="utf-8")
+        app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+        index_html = INDEX_HTML_PATH.read_text(encoding="utf-8")
+        templates_py = (TEMPLATES_DIR.parent / "templates.py").read_text(encoding="utf-8")
+        app_py = (TEMPLATES_DIR.parent / "app.py").read_text(encoding="utf-8")
+
+        defined_classes: Set[str] = {
+            re.sub(r"\\(.)", r"\1", m)
+            for m in re.findall(r"\.((?:[A-Za-z0-9_-]|\\.)+)", tokens_css + "\n" + comp_css)
+        }
+        for label, src_text in (
+            ("index.html", index_html),
+            ("templates.py", templates_py),
+            ("app.py", app_py),
+            ("views.js", self.views_text),
+            ("charts.js", charts_js),
+            ("app.js", app_js),
+        ):
+            for m in re.findall(
+                r"""class\s*=\s*["']([^"'`]+)["']|class\s*=\s*"([^"]+)"|class="([^"]*)"|class='([^']*)'""",
+                src_text,
+            ):
+                raw = next(x for x in m if x)
+                cleaned = re.sub(r"\$\{[^}]*\}|\{[^}]*\}", " ", raw)
+                for tok in cleaned.split():
+                    if (
+                        re.match(r"^[A-Za-z_][A-Za-z0-9_:/\[\].-]*$", tok)
+                        and tok not in ("price", "false")
+                        and not tok.endswith("--")
+                    ):
+                        self.assertIn(tok, defined_classes, f"Undefined CSS class {tok} in {label}")
+
+        self.assertIn("scaleYRaw", charts_js)
+        self.assertIn("s.time || s.recorded_at", charts_js)
+        self.assertIn("ols_trendline.r2", self.views_text)
+        self.assertIn("Median p50", self.views_text)
+        self.assertIn("renderMarketLoadingHtml", self.views_text)
+        self.assertIn("renderArbitrageLoadingHtml", self.views_text)
+        self.assertIn("renderCompareLoadingHtml", self.views_text)
+        self.assertIn("is-tray-visible", app_js)
+        self.assertIn("handleTriageTabKeydown", app_js)
+        self.assertIn("#frontier-svg-wrapper", comp_css)
+        self.assertIn("#degraded-banner[hidden]", comp_css)
+        self.assertIn(".drawer-panel", comp_css)
 
 
 if __name__ == "__main__":

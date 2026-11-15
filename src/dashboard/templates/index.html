@@ -141,9 +141,11 @@
 
                     <div class="filter-field filter-field--actions">
                         <span class="control-label">View Layout &amp; Reset</span>
-                        <div role="group" aria-label="Listing layout view" class="filter-field__actions">
-                            <button type="button" id="view-grid-btn" class="btn btn-secondary" aria-pressed="true" title="Grid View">Grid</button>
-                            <button type="button" id="view-table-btn" class="btn btn-secondary" aria-pressed="false" title="Table View">Table</button>
+                        <div class="filter-field__actions">
+                            <div role="group" aria-label="Listing layout view" class="view-toggle">
+                                <button type="button" id="view-grid-btn" class="view-toggle-btn" aria-pressed="true" title="Grid View">Grid</button>
+                                <button type="button" id="view-table-btn" class="view-toggle-btn" aria-pressed="false" title="Table View">Table</button>
+                            </div>
                             <button type="button" id="reset-filters-btn" class="btn btn-ghost" title="Reset all filters">Reset Filters</button>
                         </div>
                     </div>
@@ -190,16 +192,18 @@
 
     <div id="compare-tray" class="compare-tray" role="region" aria-label="Comparison Queue" hidden></div>
 
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+
     <aside id="analysis-drawer" class="valuation-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
-        <div class="drawer-backdrop" id="drawer-backdrop"></div>
         <div class="drawer-panel">
-            <button type="button" id="drawer-close-btn" class="drawer-close" aria-label="Close valuation drawer">&times;</button>
+            <button type="button" id="drawer-close-btn" class="drawer-close" data-action="close-drawer" aria-label="Close valuation drawer">&times;</button>
             <div id="drawer-body" class="drawer-body"></div>
         </div>
-        <div id="detail-modal" class="detail-modal" hidden>
-            <div id="modal-body"></div>
-        </div>
     </aside>
+
+    <div id="detail-modal" class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+        <div id="modal-body" class="modal-dialog"></div>
+    </div>
 
     <footer role="contentinfo" class="console-footer">
         <div class="console-footer__inner">

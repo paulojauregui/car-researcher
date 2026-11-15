@@ -46,6 +46,9 @@ export function escapeSvgText(value) {
  */
 function formatCurrency(val) {
   const num = Math.round(Number(val) || 0);
+  if (num < 0) {
+    return '-$' + Math.abs(num).toLocaleString('en-US');
+  }
   return '$' + num.toLocaleString('en-US');
 }
 
@@ -325,6 +328,11 @@ export function renderFrontierChart(containerEl, tooltipEl, cohortData, options 
     return 360 - Math.max(0, Math.min(1, frac)) * 332;
   }
 
+  function scaleYRaw(pr) {
+    const frac = (pr - yMin) / (yMax - yMin || 1);
+    return 360 - frac * 332;
+  }
+
   // Gridlines and Ticks
   const xTicksCount = 5;
   let xTicksSvg = '';
@@ -400,9 +408,9 @@ export function renderFrontierChart(containerEl, tooltipEl, cohortData, options 
     const yVal1 = ic + s * (xMin / 1000.0);
     const yVal2 = ic + s * (xMax / 1000.0);
     const x1 = scaleX(xMin);
-    const y1 = scaleY(yVal1);
+    const y1 = scaleYRaw(yVal1);
     const x2 = scaleX(xMax);
-    const y2 = scaleY(yVal2);
+    const y2 = scaleYRaw(yVal2);
     olsSvg = `<line class="frontier-ols-line" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" />`;
   } else {
     olsSvg = `<text class="chart-tick" x="462" y="194" text-anchor="middle">Insufficient sample (n &lt; 3) for OLS regression</text>`;
@@ -429,7 +437,7 @@ export function renderFrontierChart(containerEl, tooltipEl, cohortData, options 
           ? 'var(--status-excellent)'
           : score >= 75
           ? 'var(--status-info)'
-          : 'var(--status-cut)';
+          : 'var(--status-danger)';
       const label = `${pt.year || ''} ${pt.title || pt.make + ' ' + pt.model || 'Listing'} - ${formatCurrency(
         pt.price
       )}, ${Math.round(Number(pt.mileage) || 0).toLocaleString('en-US')} mi, Score ${Math.round(score)}`;
@@ -549,7 +557,7 @@ export function renderPriceSparkline(snapshots, options = {}) {
   const valid = rawList
     .map((s) => {
       const price = typeof s === 'number' ? s : Number(s?.price);
-      const recorded_at = s && typeof s === 'object' ? s.recorded_at || s.timestamp || null : null;
+      const recorded_at = s && typeof s === 'object' ? (s.time || s.recorded_at || s.timestamp || null) : null;
       return { price, recorded_at };
     })
     .filter((s) => Number.isFinite(s.price));

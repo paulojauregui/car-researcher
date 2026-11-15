@@ -57,6 +57,9 @@ export function formatCurrency(val) {
     return '$0';
   }
   const num = Math.round(Number(val));
+  if (num < 0) {
+    return '-$' + Math.abs(num).toLocaleString('en-US');
+  }
   return '$' + num.toLocaleString('en-US');
 }
 
@@ -162,7 +165,7 @@ export function renderBadgesHtml(badges, deal = {}, limit = 4) {
             </span>
           `.trim();
         case 'FRESH_PRICE_CUT': {
-          const dropAmt = Number(d.price_drop_total) || (Number(d.price_change) < 0 ? Math.abs(Number(d.price_change)) : 0);
+          const dropAmt = Math.abs(Number(d.price_drop_total) || (Number(d.price_change) < 0 ? Number(d.price_change) : 0));
           const dropLabel = dropAmt > 0 ? `Price Cut -${formatCurrency(dropAmt)}` : 'Price Cut';
           return `
             <span class="market-badge market-badge--cut">
@@ -189,7 +192,7 @@ export function renderBadgesHtml(badges, deal = {}, limit = 4) {
         case 'HIGH_LEVERAGE': {
           const levScore = Math.round(Number(d.negotiation_leverage_score) || 75);
           return `
-            <span class="market-badge market-badge--excellent">
+            <span class="market-badge market-badge--cut">
               <svg class="market-badge__icon" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                 <polygon points="5.5,1 2,6 5,6 4.5,9 8,4 5,4"></polygon>
               </svg>
@@ -199,7 +202,7 @@ export function renderBadgesHtml(badges, deal = {}, limit = 4) {
         }
         case 'USED_EV_TAX_CREDIT':
           return `
-            <span class="market-badge market-badge--excellent">
+            <span class="market-badge market-badge--info">
               <svg class="market-badge__icon" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                 <path d="M5,1 L8.5,2.5 L8.5,5.5 C8.5,7.5 5,9 5,9 C5,9 1.5,7.5 1.5,5.5 L1.5,2.5 Z"></path>
               </svg>
@@ -322,7 +325,7 @@ export function renderDealsSectionHtml(deals = [], kpis = {}, filters = {}, pinn
       const isActive = tab.key === currentTab;
       const activeClass = isActive ? ' is-active' : '';
       return `
-        <button type="button" role="tab" class="triage-tab${activeClass}" data-tab="${escapeHtml(tab.key)}" aria-selected="${isActive}">
+        <button type="button" role="tab" id="triage-tab-${escapeHtml(tab.key)}" class="triage-tab${activeClass}" data-tab="${escapeHtml(tab.key)}" aria-selected="${isActive}" tabindex="${isActive ? '0' : '-1'}">
           <span>${escapeHtml(tab.label)}</span>
           <span class="triage-count tabular-nums">(${formatNumber(tab.count)})</span>
         </button>
@@ -433,8 +436,9 @@ function renderPrecisionTableHtml(deals, filters, pinnedSet) {
       const deltaClass = delta <= 0 ? 'deal-card__delta--neg' : 'deal-card__delta--pos';
       const deltaText = `${formatSignedCurrency(delta)} (${pct.toFixed(1)}%)`;
 
-      let scorePillClass = 'score-pill--info';
+      let scorePillClass = 'score-pill--cut';
       if (score >= 85) scorePillClass = 'score-pill--excellent';
+      else if (score >= 75) scorePillClass = 'score-pill--info';
       else if (score < 60) scorePillClass = 'score-pill--danger';
 
       return `
@@ -491,29 +495,29 @@ function renderPrecisionTableHtml(deals, filters, pinnedSet) {
     <thead>
       <tr>
         <th scope="col">#</th>
-        <th scope="col">
-          <button type="button" class="sort-btn" data-sort="score_desc" aria-sort="${getAriaSort('score_asc', 'score_desc')}">Score</button>
+        <th scope="col" aria-sort="${getAriaSort('score_asc', 'score_desc')}">
+          <button type="button" class="sort-btn" data-sort="score_desc">Score</button>
         </th>
         <th scope="col">Vehicle &amp; VIN</th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="price_asc" aria-sort="${getAriaSort('price_asc', 'price_desc')}">Price</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('price_asc', 'price_desc')}">
+          <button type="button" class="sort-btn" data-sort="price_asc">Price</button>
         </th>
         <th scope="col" class="num-col">Est. FMV</th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="savings_asc" aria-sort="${getAriaSort('savings_asc', 'savings_desc')}">Delta vs FMV</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('savings_asc', 'savings_desc')}">
+          <button type="button" class="sort-btn" data-sort="savings_asc">Delta vs FMV</button>
         </th>
         <th scope="col" class="num-col">% Off MSRP</th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="mileage_asc" aria-sort="${getAriaSort('mileage_asc', 'mileage_desc')}">Mileage</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('mileage_asc', 'mileage_desc')}">
+          <button type="button" class="sort-btn" data-sort="mileage_asc">Mileage</button>
         </th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="dom_desc" aria-sort="${getAriaSort('dom_asc', 'dom_desc')}">DOM</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('dom_asc', 'dom_desc')}">
+          <button type="button" class="sort-btn" data-sort="dom_desc">DOM</button>
         </th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="leverage_desc" aria-sort="${getAriaSort('leverage_asc', 'leverage_desc')}">Leverage</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('leverage_asc', 'leverage_desc')}">
+          <button type="button" class="sort-btn" data-sort="leverage_desc">Leverage</button>
         </th>
-        <th scope="col" class="num-col">
-          <button type="button" class="sort-btn" data-sort="distance_asc" aria-sort="${getAriaSort('distance_asc', 'distance_desc')}">Distance</button>
+        <th scope="col" class="num-col" aria-sort="${getAriaSort('distance_asc', 'distance_desc')}">
+          <button type="button" class="sort-btn" data-sort="distance_asc">Distance</button>
         </th>
         <th scope="col">Dealer &amp; Channel</th>
         <th scope="col">Actions</th>
@@ -574,11 +578,14 @@ function renderDealsGridHtml(deals, pinnedSet) {
       const deltaClass = delta <= 0 ? 'deal-card__delta--neg' : 'deal-card__delta--pos';
       const deltaText = `${formatSignedCurrency(delta)} (${pct.toFixed(1)}%) vs FMV`;
 
-      let scorePillClass = 'score-pill--info';
-      let recLabel = 'Good Value';
+      let scorePillClass = 'score-pill--cut';
+      let recLabel = 'Fair Value';
       if (score >= 85) {
         scorePillClass = 'score-pill--excellent';
         recLabel = 'Excellent Deal';
+      } else if (score >= 75) {
+        scorePillClass = 'score-pill--info';
+        recLabel = 'Good Value';
       } else if (score < 60) {
         scorePillClass = 'score-pill--danger';
         recLabel = 'Fair / High Risk';
@@ -734,7 +741,7 @@ export function renderWorkbenchLoadingHtml(viewMode = 'grid') {
     const cards = Array.from({ length: 6 }, () => `
       <div class="skeleton-card" aria-busy="true">
         <div class="skeleton skeleton-card__media"></div>
-        <div class="p-4 flex flex-col gap-3">
+        <div class="skeleton-card__body">
           <div class="skeleton h-5 w-3/4"></div>
           <div class="skeleton h-7 w-1/2"></div>
           <div class="skeleton h-12 w-full"></div>
@@ -752,6 +759,90 @@ ${kpiSkeletons}
   <div class="skeleton h-8 w-48"></div>
 </div>
 ${bodySkeletons}
+  `.trim();
+}
+
+/**
+ * Renders geometry-matched CLS = 0 loading skeletons for Market Intelligence (#workspace-market).
+ *
+ * Pre-conditions:
+ *   - None.
+ * Post-conditions:
+ *   - Returns skeleton markup featuring .skeleton-chart, leaderboard table rows, and dual panels.
+ *
+ * @returns {string} Rendered loading HTML.
+ */
+export function renderMarketLoadingHtml() {
+  const rows = Array.from({ length: 6 }, () => '<div class="skeleton skeleton-table-row"></div>').join('\n');
+  return `
+<div class="frontier-panel" aria-busy="true">
+  <div class="skeleton h-7 w-72 mb-3"></div>
+  <div class="skeleton skeleton-chart"></div>
+</div>
+<div class="frontier-panel mt-5" aria-busy="true">
+  <div class="skeleton h-5 w-1/2 mb-3"></div>
+  ${rows}
+</div>
+<div class="momentum-grid grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5" aria-busy="true">
+  <div class="skeleton skeleton-panel"></div>
+  <div class="skeleton skeleton-panel"></div>
+</div>
+  `.trim();
+}
+
+/**
+ * Renders geometry-matched CLS = 0 loading skeletons for Dealer & Channel Arbitrage (#workspace-arbitrage).
+ *
+ * Pre-conditions:
+ *   - None.
+ * Post-conditions:
+ *   - Returns 2 platform panels, 4 distance bands, and dealer table skeleton rows.
+ *
+ * @returns {string} Rendered loading HTML.
+ */
+export function renderArbitrageLoadingHtml() {
+  const rows = Array.from({ length: 5 }, () => '<div class="skeleton skeleton-table-row"></div>').join('\n');
+  return `
+<div class="frontier-panel" aria-busy="true">
+  <div class="platform-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="skeleton skeleton-panel"></div>
+    <div class="skeleton skeleton-panel"></div>
+  </div>
+</div>
+<div class="frontier-panel mt-5" aria-busy="true">
+  <div class="distance-bands-grid">
+    <div class="skeleton skeleton-panel"></div>
+    <div class="skeleton skeleton-panel"></div>
+    <div class="skeleton skeleton-panel"></div>
+    <div class="skeleton skeleton-panel"></div>
+  </div>
+</div>
+<div class="frontier-panel mt-5" aria-busy="true">
+  ${rows}
+</div>
+  `.trim();
+}
+
+/**
+ * Renders geometry-matched CLS = 0 loading skeletons for Side-by-Side Comparator (#workspace-compare).
+ *
+ * Pre-conditions:
+ *   - None.
+ * Post-conditions:
+ *   - Returns 3-column comparator matrix skeleton rows.
+ *
+ * @returns {string} Rendered loading HTML.
+ */
+export function renderCompareLoadingHtml() {
+  const rows = Array.from({ length: 8 }, () => '<div class="skeleton skeleton-table-row"></div>').join('\n');
+  return `
+<div class="compare-toolbar" aria-busy="true">
+  <div class="skeleton h-5 w-48"></div>
+  <div class="skeleton h-7 w-48"></div>
+</div>
+<div class="compare-matrix-wrap p-4" aria-busy="true">
+  ${rows}
+</div>
   `.trim();
 }
 
@@ -817,7 +908,8 @@ export function renderMarketWorkspaceHtml(overview = {}, cohortsData = {}, selec
   const confidence = sel.confidence_tier || 'LOW';
   const scope = sel.cohort_scope || 'exact';
   const slope = sel.ols_trendline ? `${formatCurrency(sel.ols_trendline.slope_per_1k_miles)}/1k mi` : 'N/A';
-  const r2 = sel.ols_trendline && sel.ols_trendline.r_squared != null ? sel.ols_trendline.r_squared.toFixed(2) : 'N/A';
+  const r2Raw = sel.ols_trendline ? (sel.ols_trendline.r2 ?? sel.ols_trendline.r_squared) : null;
+  const r2 = r2Raw != null ? Number(r2Raw).toFixed(2) : 'N/A';
   const p25 = sel.p25 != null ? formatCurrency(sel.p25) : 'N/A';
   const p50 = sel.p50 != null ? formatCurrency(sel.p50) : 'N/A';
 
@@ -847,12 +939,15 @@ export function renderMarketWorkspaceHtml(overview = {}, cohortsData = {}, selec
 
   // 14-Model Leaderboard
   const leaderboard = ov.leaderboard || [];
-  const leaderboardRows = leaderboard.map((row) => {
+  const leaderboardRows = leaderboard.length === 0
+    ? '<tr><td colspan="11" class="text-center text-muted p-4">No tracked watchlist cohorts loaded.</td></tr>'
+    : leaderboard.map((row) => {
     const isZero = row.sample_size === 0;
     const make = row.make || '';
     const model = row.model || '';
     const topScore = Number(row.top_deal_score) || 0;
     const bestDealId = row.best_deal_id || '';
+    const topScoreCls = topScore >= 85 ? 'excellent' : topScore >= 75 ? 'info' : topScore >= 60 ? 'cut' : 'danger';
 
     return `
       <tr class="${isZero ? 'opacity-60' : ''}">
@@ -872,7 +967,7 @@ export function renderMarketWorkspaceHtml(overview = {}, cohortsData = {}, selec
         <td class="num-col tabular-nums">${isZero ? '--' : `${Number(row.avg_dom).toFixed(1)}d`}</td>
         <td class="num-col tabular-nums">${isZero ? '--' : `${formatNumber(row.price_cut_count)} (${Number(row.price_cut_share_pct).toFixed(0)}%)`}</td>
         <td class="num-col tabular-nums">
-          ${isZero ? '--' : `<span class="score-pill score-pill--${topScore >= 85 ? 'excellent' : 'info'}">${topScore.toFixed(1)}</span>`}
+          ${isZero ? '--' : `<span class="score-pill score-pill--${topScoreCls}">${topScore.toFixed(1)}</span>`}
         </td>
         <td>
           <div class="flex items-center gap-1">
@@ -896,14 +991,14 @@ export function renderMarketWorkspaceHtml(overview = {}, cohortsData = {}, selec
     ? '<div class="empty-state text-xs p-4">No recent price drops in active inventory.</div>'
     : cutMovers.map((m) => {
         const lid = String(m.id || m.platform_id || m.vin || '');
-        const dropAmt = Number(m.price_drop_total) || 0;
-        const dropPct = Number(m.price_drop_pct) || 0;
-        const vel = Number(m.price_velocity_per_week) || 0;
+        const dropAmt = Math.abs(Number(m.price_drop_total) || 0);
+        const dropPct = Math.abs(Number(m.price_drop_pct) || 0);
+        const vel = Math.abs(Number(m.price_velocity_per_week) || 0);
         return `
           <div class="momentum-row">
             <div>
               <div class="font-semibold text-primary">${escapeHtml(m.title || `${m.year || ''} ${m.make || ''} ${m.model || ''}`)}</div>
-              <div class="control-hint tabular-nums">Current ${formatCurrency(m.price)} | Initial ${formatCurrency(m.initial_price || (m.price + dropAmt))}</div>
+              <div class="control-hint tabular-nums">Current ${formatCurrency(m.price)} | Initial ${formatCurrency(m.initial_price || (Number(m.price || 0) + dropAmt))}</div>
             </div>
             <div class="text-right">
               <span class="deal-card__delta deal-card__delta--neg tabular-nums">-${formatCurrency(dropAmt)} (-${dropPct.toFixed(1)}%)</span>
@@ -965,6 +1060,10 @@ export function renderMarketWorkspaceHtml(overview = {}, cohortsData = {}, selec
       <span class="frontier-legend-item">
         <span class="frontier-legend-line frontier-legend-line--p25"></span>
         <span>p25 Buy-Zone</span>
+      </span>
+      <span class="frontier-legend-item">
+        <span class="frontier-legend-line frontier-legend-line--p50"></span>
+        <span>Median p50</span>
       </span>
     </div>
   </div>
@@ -1156,8 +1255,8 @@ export function renderArbitrageWorkspaceHtml(arbitrageData = {}) {
         </div>
         <div class="mt-2 pt-2 border-t border-subtle flex items-center justify-between">
           <span class="control-hint tabular-nums">Drops: ${cutPct.toFixed(0)}%</span>
-          <button type="button" class="btn btn-ghost text-xs" data-action="filter-distance" data-max-distance="${escapeHtml(String(band.max_mi || 60))}">
-            Filter &le; ${escapeHtml(String(band.max_mi || '60+'))} mi
+          <button type="button" class="btn btn-ghost text-xs" data-action="filter-distance" data-max-distance="${band.max_mi != null ? escapeHtml(String(band.max_mi)) : ''}">
+            ${band.max_mi != null ? `Filter &le; ${escapeHtml(String(band.max_mi))} mi` : 'All Distances'}
           </button>
         </div>
       </div>
@@ -1165,7 +1264,9 @@ export function renderArbitrageWorkspaceHtml(arbitrageData = {}) {
   }).join('\n');
 
   // Dealer matrix precision table
-  const dealerRowsHtml = dealers.map((dealer) => {
+  const dealerRowsHtml = dealers.length === 0
+    ? '<tr><td colspan="8" class="text-center text-muted p-4">No dealership inventory records matched current thresholds.</td></tr>'
+    : dealers.map((dealer) => {
     const name = dealer.seller_name || 'Dealer';
     const city = dealer.location_city || 'Bay Area';
     const dist = dealer.distance_miles != null ? `${Number(dealer.distance_miles).toFixed(1)} mi` : 'N/A';
@@ -1299,13 +1400,13 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
   function renderSlotHeader(deal, idx) {
     if (!deal) {
       return `
-        <td class="compare-slot-header">
+        <th scope="col" class="compare-slot-header">
           <div class="compare-slot-empty">
             <span class="block font-semibold">Slot ${idx + 1} Open</span>
             <span class="block text-2xs mt-1">Add another vehicle from Workbench</span>
             <button type="button" class="btn btn-secondary text-xs mt-3" data-action="switch-workspace" data-workspace="workbench">Browse Deals</button>
           </div>
-        </td>
+        </th>
       `.trim();
     }
 
@@ -1313,11 +1414,12 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
     const title = deal.title || `${deal.year || ''} ${deal.make || ''} ${deal.model || ''}`.trim();
     const price = Number(deal.price) || 0;
     const score = Number(deal.deal_score) || 0;
+    const scoreCls = score >= 85 ? 'excellent' : score >= 75 ? 'info' : score >= 60 ? 'cut' : 'danger';
     const vin = deal.vin || '';
     const platform = (deal.platform || 'Cars.com').toUpperCase();
 
     return `
-      <td class="compare-slot-header">
+      <th scope="col" class="compare-slot-header">
         <div class="flex flex-col gap-2 p-3 bg-surface border border-default rounded-lg">
           <div class="flex items-center justify-between">
             <span class="scope-chip">${escapeHtml(platform)}</span>
@@ -1326,13 +1428,13 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
           <h4 class="font-bold text-sm text-primary line-clamp-1">${escapeHtml(title)}</h4>
           <div class="flex items-baseline justify-between">
             <span class="text-xl font-bold text-primary tabular-nums">${formatCurrency(price)}</span>
-            <span class="score-pill score-pill--${score >= 85 ? 'excellent' : 'info'} tabular-nums">${score.toFixed(1)}</span>
+            <span class="score-pill score-pill--${scoreCls} tabular-nums">${score.toFixed(1)}</span>
           </div>
           <button type="button" class="vin-chip tabular-nums" data-action="copy-vin" data-vin="${escapeHtml(vin)}" title="Copy VIN">
             ${escapeHtml(vin || 'NO VIN')}
           </button>
         </div>
-      </td>
+      </th>
     `.trim();
   }
 
@@ -1373,6 +1475,16 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
         isWinner,
       };
     }),
+    renderDimensionRow('% Off Original MSRP', (d) => {
+      const lid = String(d.id || d.platform_id || d.vin || '');
+      const disc = Number(d.msrp_discount_pct) || 0;
+      const msrp = Number(d.estimated_msrp) || 0;
+      const isWinner = highlights.highest_msrp_discount_id === lid;
+      return {
+        text: msrp > 0 ? `${disc.toFixed(1)}% off (Est. MSRP ${formatCurrency(msrp)})` : `${disc.toFixed(1)}%`,
+        isWinner,
+      };
+    }),
     renderDimensionRow('Deal Score', (d) => {
       const lid = String(d.id || d.platform_id || d.vin || '');
       const score = Number(d.deal_score) || 0;
@@ -1406,13 +1518,29 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
         isWinner,
       };
     }),
+    renderDimensionRow('EPA Range & Efficiency', (d) => {
+      const lid = String(d.id || d.platform_id || d.vin || '');
+      const epaObj = d.epa || d.analytics?.epa || {};
+      const rangeMi = epaObj.range_miles || epaObj.ev_range_miles;
+      const mpge = epaObj.comb_mpge || epaObj.combined_mpge;
+      const fuel = Number(epaObj.annual_fuel_cost) || 0;
+      const isWinner = highlights.highest_range_id === lid;
+      const labelParts = [];
+      labelParts.push(rangeMi ? `${formatNumber(rangeMi)} mi` : 'N/A');
+      if (mpge) labelParts.push(`${Math.round(Number(mpge))} MPGe`);
+      if (fuel > 0) labelParts.push(`${formatCurrency(fuel)}/yr`);
+      return {
+        text: labelParts.join(' &bull; '),
+        isWinner,
+      };
+    }),
     renderDimensionRow('DOM', (d) => {
       const lid = String(d.id || d.platform_id || d.vin || '');
       const dom = Number(d.days_on_market) || 0;
-      const drop = Number(d.price_drop_total) || 0;
+      const drop = Math.abs(Number(d.price_drop_total) || 0);
       const isWinner = highlights.highest_dom_id === lid;
       return {
-        text: `${dom}d on lot &bull; Drops: -${formatCurrency(drop)}`,
+        text: `${dom}d on lot &bull; Drops: ${drop > 0 ? '-' + formatCurrency(drop) : '$0'}`,
         isWinner,
       };
     }),
@@ -1428,7 +1556,7 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
     }),
     renderDimensionRow('3-Yr TCO Delta', (d) => {
       const lid = String(d.id || d.platform_id || d.vin || '');
-      const tco = Number(d.total_3yr_ownership_delta) || (Number(d.analytics?.total_3yr_ownership_delta) || 0);
+      const tco = Number(d.total_3yr_ownership_delta ?? d.analytics?.total_3yr_ownership_delta ?? 0);
       const isWinner = highlights.lowest_3yr_tco_id === lid;
       return {
         text: formatCurrency(tco),
@@ -1451,6 +1579,17 @@ export function renderComparatorWorkspaceHtml(compareData = {}, pinnedIds = []) 
       const isWinner = Array.isArray(highlights.lowest_risk_ids) && highlights.lowest_risk_ids.includes(lid);
       return {
         text: `${escapeHtml(posture)} &bull; ${cleanTitle ? 'Clean Title' : 'Branded Title'}`,
+        isWinner,
+      };
+    }),
+    renderDimensionRow('Dealer Spread & Distance', (d) => {
+      const lid = String(d.id || d.platform_id || d.vin || '');
+      const seller = escapeHtml(d.seller_name || 'Dealer');
+      const city = escapeHtml(d.location_city || 'Bay Area');
+      const dist = d.distance_miles != null ? `${Number(d.distance_miles).toFixed(1)} mi` : 'N/A';
+      const isWinner = highlights.closest_distance_id === lid;
+      return {
+        text: `${dist} &bull; ${seller} (${city})`,
         isWinner,
       };
     }),
@@ -1569,7 +1708,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
             <span class="text-2xl font-bold text-primary tabular-nums">${formatCurrency(price)}</span>
             <span class="text-sm text-muted tabular-nums">FMV ${formatCurrency(fmv)}</span>
             <span class="deal-card__delta ${deltaClass} tabular-nums">${escapeHtml(deltaText)}</span>
-            <span class="score-pill score-pill--${score >= 85 ? 'excellent' : 'info'} tabular-nums">${score.toFixed(1)}</span>
+            <span class="score-pill score-pill--${score >= 85 ? 'excellent' : score >= 75 ? 'info' : score >= 60 ? 'cut' : 'danger'} tabular-nums">${score.toFixed(1)}</span>
           </div>
         </div>
         <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -1653,7 +1792,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
         </div>
         <div>
           <span class="control-hint">Total Markdown</span>
-          <div class="font-bold tabular-nums text-emerald-400">-${formatCurrency(dropTotal)} (-${dropPct.toFixed(1)}%)</div>
+          <div class="font-bold tabular-nums text-emerald-400">-${formatCurrency(Math.abs(dropTotal))} (-${Math.abs(dropPct).toFixed(1)}%)</div>
         </div>
         <div>
           <span class="control-hint">Price Cuts</span>
@@ -1661,7 +1800,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
         </div>
         <div>
           <span class="control-hint">Weekly Velocity</span>
-          <div class="font-bold tabular-nums">-$${vel.toFixed(0)}/wk</div>
+          <div class="font-bold tabular-nums">-${formatCurrency(Math.abs(vel))}/wk</div>
         </div>
       </div>
       <div class="my-2">
@@ -1799,7 +1938,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
         </div>
         <div class="p-2 bg-inset rounded">
           <span class="control-hint">3-Yr Depreciation</span>
-          <div class="font-bold tabular-nums text-amber-400">-${formatCurrency(dep3yr)}</div>
+          <div class="font-bold tabular-nums text-amber-400">-${formatCurrency(Math.abs(dep3yr))}</div>
         </div>
         <div class="p-2 bg-inset rounded">
           <span class="control-hint">3-Yr Energy Cost</span>
@@ -1807,7 +1946,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
         </div>
         <div class="p-2 bg-inset rounded">
           <span class="control-hint">EV Tax Credit</span>
-          <div class="font-bold tabular-nums text-emerald-400">-${formatCurrency(creditOffset)}</div>
+          <div class="font-bold tabular-nums text-emerald-400">-${formatCurrency(Math.abs(creditOffset))}</div>
         </div>
         <div class="p-2 bg-inset rounded">
           <span class="control-hint">Net 3-Yr TCO Delta</span>
@@ -1846,6 +1985,9 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
   const range = epa.ev_range_miles || epa.range_miles || 'N/A';
   const mpge = epa.comb_mpge || epa.combined_mpge || 'N/A';
   const fuelCost = Number(epa.annual_fuel_cost) || 0;
+  const epaSourceLabel = epa.source === 'live_epa' ? 'Live EPA Data' : 'Watchlist Baseline';
+  const ownerCount = deal.owner_count != null ? Number(deal.owner_count) : (deal.owners != null ? Number(deal.owners) : 1);
+  const titleStatusLabel = String(deal.title_status || 'CLEAN').toUpperCase() === 'CLEAN' ? 'Clean Title' : String(deal.title_status);
   const recalls = profile.recalls || deal.recalls || [];
   const complaints = profile.complaints || [];
 
@@ -1864,7 +2006,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
         <h3 class="text-sm font-bold text-primary">NHTSA Safety Posture &amp; EPA Telemetry</h3>
         <span class="safety-badge ${safetyClass}">Safety: ${escapeHtml(safety)}</span>
       </div>
-      <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+      <div class="grid grid-cols-3 gap-2 text-xs mb-2">
         <div class="p-2 bg-inset rounded">
           <span class="control-hint">EV Range</span>
           <div class="font-bold tabular-nums">${escapeHtml(String(range))} mi</div>
@@ -1878,6 +2020,11 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
           <div class="font-bold tabular-nums">${formatCurrency(fuelCost)}/yr</div>
         </div>
       </div>
+      <div class="control-hint text-2xs mb-3">
+        Title: <strong>${escapeHtml(titleStatusLabel)}</strong> &bull;
+        Owners: <strong class="tabular-nums">${formatNumber(ownerCount)}</strong> &bull;
+        EPA Source: <span class="scope-chip">${escapeHtml(epaSourceLabel)}</span>
+      </div>
       <div>
         <h4 class="text-xs font-semibold text-primary mb-1">NHTSA Safety Recalls &amp; VOQ Complaints</h4>
         ${recallsListHtml}
@@ -1889,7 +2036,7 @@ export function renderAnalysisDrawerHtml(analysisData = {}, pinnedIds = new Set(
   `.trim();
 
   return `
-<div class="drawer-inner flex flex-col h-full bg-elevated text-primary" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+<div class="drawer-inner flex flex-col h-full bg-elevated text-primary">
   ${headerHtml}
   <div class="drawer-body flex-1 overflow-y-auto">
     ${section2Html}

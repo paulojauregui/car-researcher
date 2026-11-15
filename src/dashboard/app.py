@@ -215,7 +215,7 @@ def _scan_error_banner(error: Optional[str]) -> str:
     """
     safe_error = html.escape(str(error or "unknown error"))
     return (
-        '<div class="bg-rose-950/80 border border-rose-700 text-rose-200 px-4 py-2.5 rounded-xl mb-5 text-xs" '
+        '<div class="scan-error-alert" '
         f'role="alert">Could not trigger scan: {safe_error}</div>'
     )
 
@@ -658,7 +658,7 @@ class DashboardApp:
                 if target_wf_id:
                     summary = await self.query_scan_workflow(target_wf_id)
                     return _html_response(render_scan_status_banner(target_wf_id, summary))
-                return _html_response('<div class="text-slate-400 text-xs">No active scan workflow.</div>')
+                return _html_response('<div class="text-muted text-xs">No active scan workflow.</div>')
             return _json_response(await self._scan_status_payload(target_wf_id))
 
         # 11. HTMX Poller / v2 API: Query Temporal Scan Progress for a specific workflow.

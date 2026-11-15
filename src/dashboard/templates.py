@@ -55,7 +55,7 @@ def _score_badge_class(score: float) -> str:
     if score >= 75.0:
         return "score-pill--info"
     if score >= 60.0:
-        return "score-pill--warn"
+        return "score-pill--cut"
     return "score-pill--danger"
 
 
@@ -138,7 +138,8 @@ def render_degraded_banner(provenance: Optional[Dict[str, Any]] = None) -> str:
                 </div>
             </div>
             <div class="degraded-banner__diagnostics">
-                <button type="button" class="btn btn-secondary text-xs" onclick="window.location.reload()">Retry Connection</button>
+                <button type="button" class="btn btn-secondary text-xs" data-action="retry-connection">Retry Connection</button>
+                <button type="button" class="btn btn-ghost text-xs" data-action="acknowledge-degraded">Acknowledge</button>
             </div>
         </div>
         """.strip()
@@ -218,17 +219,17 @@ def _render_grid_view(deals: List[Dict[str, Any]]) -> str:
                     <div class="deal-card__meta-item"><span class="text-muted">Odometer:</span> <strong class="tabular-nums">{mileage:,} mi</strong></div>
                     <div class="deal-card__meta-item"><span class="text-muted">Location:</span> <span class="tabular-nums truncate" title="{dist_str}">{dist_str}</span></div>
                     <div class="deal-card__meta-item"><span class="text-muted">Dealer / DOM:</span> <span class="truncate tabular-nums" title="{dealer}">{dealer} ({dom}d)</span></div>
-                    <div class="deal-card__meta-item"><button type="button" class="vin-chip tabular-nums" data-action="copy-vin" data-vin="{vin}" onclick="navigator.clipboard.writeText('{vin}')" title="Copy VIN">{vin}</button></div>
+                    <div class="deal-card__meta-item"><button type="button" class="vin-chip tabular-nums" data-action="copy-vin" data-vin="{vin}" title="Copy VIN">{vin}</button></div>
                 </div>
             </div>
             <div class="deal-card__footer">
                 <div class="flex items-center gap-1">
                     <button type="button" class="btn btn-secondary text-xs" data-action="pin" data-listing-id="{lid}" aria-pressed="false">Compare</button>
-                    <button type="button" class="btn btn-ghost text-xs" hx-post="/api/listing/{lid}/bookmark" hx-target="#deals-container" hx-include="#filter-form" data-action="bookmark" data-listing-id="{lid}" aria-pressed="{str(is_bm).lower()}">{star_lbl}</button>
-                    <button type="button" class="btn btn-ghost text-xs" hx-post="/api/listing/{lid}/dismiss" hx-target="#deals-container" hx-include="#filter-form" data-action="dismiss" data-listing-id="{lid}">{dis_lbl}</button>
+                    <button type="button" class="btn btn-ghost text-xs" data-action="bookmark" data-listing-id="{lid}" aria-pressed="{str(is_bm).lower()}">{star_lbl}</button>
+                    <button type="button" class="btn btn-ghost text-xs" data-action="dismiss" data-listing-id="{lid}">{dis_lbl}</button>
                 </div>
                 <div class="flex items-center gap-1">
-                    <button type="button" class="btn btn-secondary text-xs" hx-get="/partials/listing/{lid}/history" hx-target="#modal-body" data-action="analyze" data-listing-id="{lid}" onclick="openModal()">Analyze</button>
+                    <button type="button" class="btn btn-secondary text-xs" data-action="analyze" data-listing-id="{lid}">Analyze</button>
                     <a href="{url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary text-xs" aria-label="Open listing on {platform}">View &nearr;</a>
                 </div>
             </div>
@@ -269,7 +270,7 @@ def _render_table_view(deals: List[Dict[str, Any]]) -> str:
             <td>
                 <a href="{url}" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary">{title}</a>
                 <div class="deal-card__badges mt-1">
-                    <button type="button" class="vin-chip tabular-nums" data-action="copy-vin" data-vin="{vin}" onclick="navigator.clipboard.writeText('{vin}')" title="Copy VIN">{vin}</button>
+                    <button type="button" class="vin-chip tabular-nums" data-action="copy-vin" data-vin="{vin}" title="Copy VIN">{vin}</button>
                 </div>
             </td>
             <td class="num-col font-bold text-primary tabular-nums">${price:,}</td>
@@ -282,9 +283,9 @@ def _render_table_view(deals: List[Dict[str, Any]]) -> str:
             <td class="text-right whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
                     <button type="button" class="btn btn-ghost text-xs" data-action="pin" data-listing-id="{lid}">Compare</button>
-                    <button type="button" hx-post="/api/listing/{lid}/bookmark" hx-target="#deals-container" hx-include="#filter-form" data-action="bookmark" data-listing-id="{lid}" class="btn btn-ghost text-xs">{star_lbl}</button>
-                    <button type="button" hx-get="/partials/listing/{lid}/history" hx-target="#modal-body" data-action="analyze" data-listing-id="{lid}" onclick="openModal()" class="btn btn-secondary text-xs">Analyze</button>
-                    <button type="button" hx-post="/api/listing/{lid}/dismiss" hx-target="#deals-container" hx-include="#filter-form" data-action="dismiss" data-listing-id="{lid}" class="btn btn-ghost text-xs">{dis_lbl}</button>
+                    <button type="button" data-action="bookmark" data-listing-id="{lid}" class="btn btn-ghost text-xs">{star_lbl}</button>
+                    <button type="button" data-action="analyze" data-listing-id="{lid}" class="btn btn-secondary text-xs">Analyze</button>
+                    <button type="button" data-action="dismiss" data-listing-id="{lid}" class="btn btn-ghost text-xs">{dis_lbl}</button>
                     <a href="{url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary text-xs">View &nearr;</a>
                 </div>
             </td>
@@ -350,8 +351,9 @@ def render_deals_section(
     )
 
     tabs_html: List[str] = [
-        f'<button type="button" role="tab" class="triage-tab{" is-active" if t_key == normalized_tab else ""}" '
-        f'data-action="subtab" data-tab="{t_key}" aria-selected="{str(t_key == normalized_tab).lower()}">'
+        f'<button type="button" role="tab" id="triage-tab-{t_key}" class="triage-tab{" is-active" if t_key == normalized_tab else ""}" '
+        f'data-action="subtab" data-tab="{t_key}" aria-selected="{str(t_key == normalized_tab).lower()}" '
+        f'tabindex="{0 if t_key == normalized_tab else -1}">'
         f'<span>{t_label}</span> <span class="triage-count tabular-nums">({t_count})</span></button>'
         for t_key, t_label, t_count in sub_tabs
     ]
@@ -436,7 +438,7 @@ def render_listing_history_modal(history_data: Optional[Dict[str, Any]]) -> str:
             </div>
         </div>
         <div class="mt-5">
-            <h3 class="kpi-label mb-3">Composite Deal Score Breakdown ({d.get('deal_score', 0)} / 100 &bull; {_esc(d.get('recommendation', ''))})</h3>
+            <h3 class="kpi-label mb-3">Composite Deal Score Breakdown (<span class="tabular-nums">{d.get('deal_score', 0)} / 100</span> &bull; {_esc(d.get('recommendation', ''))})</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-inset p-4 rounded-lg">
                 <div>
                     <div class="flex justify-between text-xs mb-1"><span class="text-secondary">1. Price vs. Market Value (50% weight)</span><span class="font-bold tabular-nums">{bd.get('price_score', 0):.1f} / 100</span></div>
@@ -457,7 +459,7 @@ def render_listing_history_modal(history_data: Optional[Dict[str, Any]]) -> str:
             </div>
         </div>
         <div class="mt-6">
-            <h3 class="kpi-label mb-2">TimescaleDB Price Snapshots ({len(snapshots)} recorded)</h3>
+            <h3 class="kpi-label mb-2">TimescaleDB Price Snapshots (<span class="tabular-nums">{len(snapshots)}</span> recorded)</h3>
             <div class="table-scroll precision-table-wrap">
                 <table class="precision-table">
                     <thead><tr><th scope="col">Recorded Timestamp</th><th scope="col" class="num-col">Listed Price</th><th scope="col" class="num-col">Price Delta</th><th scope="col" class="num-col">Days on Market</th></tr></thead>
