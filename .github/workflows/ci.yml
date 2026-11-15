@@ -117,33 +117,97 @@ jobs:
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      HAS_GITOPS_APP: ${{ secrets.GITOPS_APP_ID != '' && secrets.GITOPS_APP_PRIVATE_KEY != '' }}
+      HAS_GITOPS_PR_TOKEN: ${{ secrets.GITOPS_PR_TOKEN != '' }}
     steps:
+      - name: Verify GitOps Promotion Credentials
+        if: env.HAS_GITOPS_APP != 'true' && env.HAS_GITOPS_PR_TOKEN != 'true'
+        run: |
+          echo "::error::Missing GitOps promotion credentials. Configure (GITOPS_APP_ID + GITOPS_APP_PRIVATE_KEY) or GITOPS_PR_TOKEN with Contents:write and Pull requests:write on paulojauregui/k8s-gitops."
+          exit 1
+
+      - name: Generate GitOps GitHub App Token
+        if: env.HAS_GITOPS_APP == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: paulojauregui
+          repositories: k8s-gitops
+
       - name: Checkout GitOps Repository
         uses: actions/checkout@v7
         with:
           repository: paulojauregui/k8s-gitops
-          ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
+          token: ${{ steps.app-token.outputs.token || secrets.GITOPS_PR_TOKEN }}
           ref: main
 
       - name: Install Kustomize
         run: |
-          curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.7.1/kustomize_v5.7.1_linux_amd64.tar.gz" | tar xz -C /tmp
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.7.1/kustomize_v5.7.1_linux_amd64.tar.gz" | tar xz -C /tmp
           sudo mv /tmp/kustomize /usr/local/bin/
 
       - name: Update Image Tag and Digest in GitOps Base
         working-directory: apps/base/car-researcher
         run: |
           kustomize edit set image ghcr.io/paulojauregui/car-researcher=ghcr.io/paulojauregui/car-researcher:${{ needs.build-and-push.outputs.image_tag }}@${{ needs.build-and-push.outputs.image_digest }}
+          kustomize build ../../overlays/home/car-researcher > /dev/null
 
-      - name: Commit and Push to GitOps main
+      - name: Create GitOps Promotion Pull Request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITOPS_PR_TOKEN }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          IMAGE_DIGEST: ${{ needs.build-and-push.outputs.image_digest }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add apps/base/car-researcher/kustomization.yaml
           if git diff --staged --quiet; then
-            echo "No changes detected in kustomization.yaml"
-          else
-            git commit -m "chore(car-researcher): promote ${{ needs.build-and-push.outputs.image_tag }}"
-            git push origin main
+            echo "No changes detected in kustomization.yaml; already at ${IMAGE_TAG}@${IMAGE_DIGEST}."
+            exit 0
           fi
+
+          if [ -n "${APP_SLUG}" ]; then
+            git config user.name "${APP_SLUG}[bot]"
+            git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+          fi
+
+          BRANCH="chore/car-researcher-promote-${IMAGE_TAG}"
+          git checkout -b "${BRANCH}"
+          git commit -m "chore(car-researcher): promote ${IMAGE_TAG}"
+
+          if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${BRANCH}"
+            git push --force-with-lease="refs/heads/${BRANCH}" origin "HEAD:refs/heads/${BRANCH}"
+          else
+            git push origin "HEAD:refs/heads/${BRANCH}"
+          fi
+
+          PR_URL=$(gh pr list --repo paulojauregui/k8s-gitops --head "${BRANCH}" --state open --json url --jq '.[0].url // empty')
+          if [ -z "${PR_URL}" ]; then
+            PR_BODY=$(printf '%s\n' \
+              "### Summary" \
+              "Promotes \`apps/base/car-researcher/kustomization.yaml\` to \`ghcr.io/paulojauregui/car-researcher:${IMAGE_TAG}@${IMAGE_DIGEST}\`." \
+              "" \
+              "- **Source Commit:** \`paulojauregui/car-researcher@${SOURCE_SHA}\`" \
+              "- **CI Run:** ${RUN_URL}" \
+              "- **Verification:** \`kustomize build apps/overlays/home/car-researcher\` succeeded in CI.")
+            PR_URL=$(gh pr create \
+              --repo paulojauregui/k8s-gitops \
+              --base main \
+              --head "${BRANCH}" \
+              --title "chore(car-researcher): promote ghcr.io/paulojauregui/car-researcher:${IMAGE_TAG}" \
+              --body "${PR_BODY}")
+          fi
+
+          echo "GitOps promotion PR: ${PR_URL}"
+          echo "### GitOps Promotion" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Pull Request:** ${PR_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image:** \`ghcr.io/paulojauregui/car-researcher:${IMAGE_TAG}@${IMAGE_DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
 
