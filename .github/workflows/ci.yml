@@ -17,7 +17,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: howdiggy/car-researcher
+  IMAGE_NAME: paulojauregui/car-researcher
 
 jobs:
   quality:
@@ -121,7 +121,7 @@ jobs:
       - name: Checkout GitOps Repository
         uses: actions/checkout@v7
         with:
-          repository: HowDiggy/k8s-gitops
+          repository: paulojauregui/k8s-gitops
           ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
           ref: main
 
@@ -133,7 +133,7 @@ jobs:
       - name: Update Image Tag and Digest in GitOps Base
         working-directory: apps/base/car-researcher
         run: |
-          kustomize edit set image ghcr.io/howdiggy/car-researcher=ghcr.io/howdiggy/car-researcher:${{ needs.build-and-push.outputs.image_tag }}@${{ needs.build-and-push.outputs.image_digest }}
+          kustomize edit set image ghcr.io/paulojauregui/car-researcher=ghcr.io/paulojauregui/car-researcher:${{ needs.build-and-push.outputs.image_tag }}@${{ needs.build-and-push.outputs.image_digest }}
 
       - name: Commit and Push to GitOps main
         run: |
