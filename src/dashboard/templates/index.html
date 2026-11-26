@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bay Area EV Deal Surveillance &bull; Market Intelligence Console</title>
+    <link rel="stylesheet" href="/static/tokens.css" />
+    <link rel="stylesheet" href="/static/components.css" />
+</head>
+<body class="app-shell">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <header id="console-header" class="console-header">
+        <div class="console-header__brand">
+            <span class="brand-emblem" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polygon points="9 1 3 9 8 9 7 15 13 7 8 7 9 1"></polygon>
+                </svg>
+            </span>
+            <div>
+                <h1 class="console-title">Bay Area EV Deal Surveillance</h1>
+                <p class="console-subtitle">Market Intelligence &amp; Quantitative Valuation Console</p>
+            </div>
+        </div>
+
+        <div class="console-meta">
+            <span class="scope-chip">ZIP {{SEARCH_ZIP}} | {{SEARCH_RADIUS}} mi</span>
+            <span id="provenance-badge">{{PROVENANCE_BADGE}}</span>
+        </div>
+
+        <div class="console-actions">
+            <form id="scan-trigger-form" action="/api/scan" method="post">
+                <label for="scan-target-select" class="sr-only">Target Vehicle Model for Scan</label>
+                <select id="scan-target-select" name="target" class="control-select">
+                    {{SCAN_OPTIONS_HTML}}
+                </select>
+                <button id="scan-submit-btn" type="submit" class="btn btn-primary">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="8" cy="8" r="6"></circle>
+                        <line x1="8" y1="2" x2="8" y2="4"></line>
+                        <line x1="8" y1="12" x2="8" y2="14"></line>
+                        <line x1="2" y1="8" x2="4" y2="8"></line>
+                        <line x1="12" y1="8" x2="14" y2="8"></line>
+                    </svg>
+                    <span>Scan Marketplace</span>
+                </button>
+            </form>
+            {{TEMPORAL_ACTION_HTML}}
+        </div>
+    </header>
+
+    <nav class="workspace-nav" aria-label="Primary Workspaces">
+        <div role="tablist" class="workspace-tablist" aria-label="Console Workspaces">
+            <button type="button" role="tab" id="tab-workbench" class="workspace-tab" aria-selected="true" aria-controls="workspace-workbench" tabindex="0">
+                <span>Deal Workbench</span>
+            </button>
+            <button type="button" role="tab" id="tab-market" class="workspace-tab" aria-selected="false" aria-controls="workspace-market" tabindex="-1">
+                <span>Market Intelligence</span>
+            </button>
+            <button type="button" role="tab" id="tab-arbitrage" class="workspace-tab" aria-selected="false" aria-controls="workspace-arbitrage" tabindex="-1">
+                <span>Dealer &amp; Channel Arbitrage</span>
+            </button>
+            <button type="button" role="tab" id="tab-compare" class="workspace-tab" aria-selected="false" aria-controls="workspace-compare" tabindex="-1">
+                <span>Side-by-Side Comparator</span>
+                <span id="compare-tab-badge" class="workspace-tab__count">0/3</span>
+            </button>
+        </div>
+    </nav>
+
+    <main id="main-content" tabindex="-1">
+        {{DEGRADED_BANNER_HTML}}
+        <div id="scan-status-banner" role="status" aria-live="polite" hidden></div>
+
+        <!-- Section 1: Deal Workbench -->
+        <section id="workspace-workbench" class="workspace-panel" role="tabpanel" aria-labelledby="tab-workbench">
+            <form id="filter-form" class="filter-bar" action="/partials/deals" method="get">
+                <input type="hidden" name="tab" id="tab-input" value="{{FILTER_TAB}}" />
+                <input type="hidden" name="view" id="view-input" value="{{FILTER_VIEW}}" />
+
+                <div class="filter-grid">
+                    <div class="filter-field">
+                        <label for="search-input" class="control-label">Search Vehicle, Trim, VIN, Dealer, or City</label>
+                        <input type="search" id="search-input" name="q" value="{{FILTER_Q}}" placeholder="Search title, trim, dealer, city, VIN..." class="control-input" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="make-select" class="control-label">Watchlist Make or Model</label>
+                        <select id="make-select" name="make" class="control-select">
+                            {{WATCHLIST_OPTIONS_HTML}}
+                        </select>
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="max-price-select" class="control-label">Max Price</label>
+                        <select id="max-price-select" name="max_price" class="control-select">
+                            <option value="">Any Price (&le; $60k)</option>
+                            <option value="25000">&le; $25,000 (EV Credit Cap)</option>
+                            <option value="30000">&le; $30,000</option>
+                            <option value="35000">&le; $35,000</option>
+                            <option value="40000">&le; $40,000</option>
+                            <option value="45000">&le; $45,000</option>
+                            <option value="50000">&le; $50,000</option>
+                            <option value="55000">&le; $55,000</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="max-mileage-select" class="control-label">Max Odometer</label>
+                        <select id="max-mileage-select" name="max_mileage" class="control-select">
+                            <option value="">Any Mileage</option>
+                            <option value="15000">&le; 15,000 miles</option>
+                            <option value="25000">&le; 25,000 miles</option>
+                            <option value="35000">&le; 35,000 miles</option>
+                            <option value="50000">&le; 50,000 miles</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="max-distance-select" class="control-label">Max Distance</label>
+                        <select id="max-distance-select" name="max_distance" class="control-select">
+                            <option value="">Any (60+ mi)</option>
+                            <option value="15">&le; 15 miles</option>
+                            <option value="30">&le; 30 miles</option>
+                            <option value="60">&le; 60 miles</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="sort-select" class="control-label">Sort Order</label>
+                        <select id="sort-select" name="sort" class="control-select">
+                            <option value="score_desc">Score (High &rarr; Low)</option>
+                            <option value="savings_asc">Savings vs FMV ($)</option>
+                            <option value="price_asc">Price (Low &rarr; High)</option>
+                            <option value="mileage_asc">Mileage (Low &rarr; High)</option>
+                            <option value="distance_asc">Distance (Closest)</option>
+                            <option value="leverage_desc">Leverage (High &rarr; Low)</option>
+                            <option value="dom_desc">Days on Market (High &rarr; Low)</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-field filter-field--actions">
+                        <span class="control-label">View Layout &amp; Reset</span>
+                        <div class="filter-field__actions">
+                            <div role="group" aria-label="Listing layout view" class="view-toggle">
+                                <button type="button" id="view-grid-btn" class="view-toggle-btn" aria-pressed="true" title="Grid View">Grid</button>
+                                <button type="button" id="view-table-btn" class="view-toggle-btn" aria-pressed="false" title="Table View">Table</button>
+                            </div>
+                            <button type="button" id="reset-filters-btn" class="btn btn-ghost" title="Reset all filters">Reset Filters</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <div id="deals-container">
+                {{INITIAL_DEALS_HTML}}
+            </div>
+        </section>
+
+        <!-- Section 2: Market Intelligence -->
+        <section id="workspace-market" class="workspace-panel" role="tabpanel" aria-labelledby="tab-market" hidden>
+            <div class="market-controls">
+                <label for="cohort-select" class="control-label">Active Valuation Cohort</label>
+                <select id="cohort-select" class="control-select"></select>
+            </div>
+            <div id="frontier-stats" class="frontier-stats"></div>
+            <div id="frontier-chart" class="frontier-panel">
+                <div id="frontier-svg-wrapper">
+                    <svg id="frontier-svg" role="img" aria-label="Price vs Mileage Value Frontier" viewBox="0 0 880 420"></svg>
+                    <div id="frontier-tooltip" class="chart-tooltip" hidden></div>
+                </div>
+            </div>
+            <div id="cohort-leaderboard" class="cohort-leaderboard"></div>
+            <div id="momentum-feed" class="momentum-feed"></div>
+        </section>
+
+        <!-- Section 3: Dealer & Channel Arbitrage -->
+        <section id="workspace-arbitrage" class="workspace-panel" role="tabpanel" aria-labelledby="tab-arbitrage" hidden>
+            <div id="platform-comparison" class="frontier-panel"></div>
+            <div id="distance-bands" class="frontier-panel"></div>
+            <div id="dealer-matrix" class="frontier-panel"></div>
+        </section>
+
+        <!-- Section 4: Side-by-Side Comparator -->
+        <section id="workspace-compare" class="workspace-panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
+            <div class="compare-toolbar">
+                <button type="button" id="compare-clear-btn" class="btn btn-ghost text-xs">Clear All Pins</button>
+            </div>
+            <div id="compare-matrix-container"></div>
+        </section>
+    </main>
+
+    <div id="compare-tray" class="compare-tray" role="region" aria-label="Comparison Queue" hidden></div>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+
+    <aside id="analysis-drawer" class="valuation-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+        <div class="drawer-panel">
+            <button type="button" id="drawer-close-btn" class="drawer-close" data-action="close-drawer" aria-label="Close valuation drawer">&times;</button>
+            <div id="drawer-body" class="drawer-body"></div>
+        </div>
+    </aside>
+
+    <div id="detail-modal" class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+        <div id="modal-body" class="modal-dialog"></div>
+    </div>
+
+    <footer role="contentinfo" class="console-footer">
+        <div class="console-footer__inner">
+            <span>Bay Area EV Deal Surveillance Desk &bull; Quantitative Market Intelligence</span>
+            <span>ZIP {{SEARCH_ZIP}} &bull; {{SEARCH_RADIUS}} mi radius</span>
+        </div>
+    </footer>
+
+    <script id="initial-state" type="application/json">{{INITIAL_STATE_JSON}}</script>
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>
