@@ -333,9 +333,11 @@ class DashboardApp:
 
         Post-conditions:
             - Returns the rendered HTML document.
-            - ``provenance`` and ``market_overview`` are passed only when the installed
-              ``render_full_dashboard_page`` signature declares them, keeping this router
-              compatible both before and after the M06 template upgrade.
+            - ``provenance`` is passed when the installed ``render_full_dashboard_page``
+              signature declares it.
+            - Avoids redundant ``get_market_overview()`` queries and payload duplication
+              during synchronous root SSR rendering since the Market Intelligence
+              workspace lazy-loads ``/api/market/overview`` on demand.
         """
         try:
             render_params = inspect.signature(render_full_dashboard_page).parameters
@@ -345,12 +347,6 @@ class DashboardApp:
         kwargs: Dict[str, Any] = {}
         if "provenance" in render_params:
             kwargs["provenance"] = self.repo.get_provenance()
-        if "market_overview" in render_params:
-            try:
-                kwargs["market_overview"] = await self.repo.get_market_overview()
-            except Exception as exc:  # pragma: no cover - defensive rendering fallback
-                logger.warning(f"Market overview unavailable for dashboard page: {exc}")
-                kwargs["market_overview"] = None
 
         return render_full_dashboard_page(deals, kpis, filters, **kwargs)
 

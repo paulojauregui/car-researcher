@@ -563,6 +563,42 @@ class TestTemplatesV2Unit(unittest.TestCase):
         self.assertIn("Scan Completed (scan-1234)", done_html)
         self.assertIn('hx-get="/partials/deals"', done_html)
 
+    def test_initial_state_compactness_and_ssr_cap(self) -> None:
+        """
+        Verify render_full_dashboard_page caps SSR deals and strips duplicated analytics
+        and raw scraper payloads from the inline initial-state JSON block.
+
+        Pre-conditions:
+            - 120 enriched deal records containing raw_data, price_history, and duplicate analytics.
+
+        Post-conditions:
+            - Rendered HTML size is well under 512 KB.
+            - Inline initial-state JSON contains at most 48 deals and omits raw_data and analytics keys.
+        """
+        base = _sample_deals()[0]
+        many_deals: List[Dict[str, Any]] = []
+        for idx in range(120):
+            item = dict(base)
+            item["id"] = f"00000000-0000-4000-8000-{idx:012d}"
+            item["raw_data"] = {"make": "Mercedes-Benz", "model": "EQS", "year": 2023, "blob": "Y" * 4000}
+            item["analytics"] = {"duplicate_blob": "Z" * 2000}
+            item["price_history"] = [{"time": "2026-10-20", "price": 39988}]
+            many_deals.append(item)
+
+        rendered = render_full_dashboard_page(many_deals, _sample_kpis(), {})
+        self.assertLess(len(rendered.encode("utf-8")), 512 * 1024)
+        self.assertNotIn("duplicate_blob", rendered)
+        self.assertNotIn("YYYYYYYYYY", rendered)
+
+        match = re.search(r'<script id="initial-state"[^>]*>(.*?)</script>', rendered, re.DOTALL)
+        self.assertIsNotNone(match)
+        if match:
+            parsed = json.loads(match.group(1).replace("<\\/", "</"))
+            self.assertEqual(len(parsed["deals"]), 48)
+            self.assertNotIn("raw_data", parsed["deals"][0])
+            self.assertNotIn("analytics", parsed["deals"][0])
+            self.assertNotIn("price_history", parsed["deals"][0])
+
 
 if __name__ == "__main__":
     unittest.main()
