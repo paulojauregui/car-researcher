@@ -18,11 +18,113 @@ import html
 import json
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.config.settings import settings
 
 _INDEX_HTML_PATH: Path = Path(__file__).resolve().parent / "templates" / "index.html"
+
+MAX_SSR_DEALS: int = 48
+
+_INITIAL_STATE_DEAL_KEYS: Tuple[str, ...] = (
+    "id",
+    "vin",
+    "platform",
+    "platform_id",
+    "url",
+    "title",
+    "make",
+    "model",
+    "year",
+    "trim_detail",
+    "price",
+    "market_value",
+    "price_delta",
+    "pct_savings",
+    "deal_score",
+    "recommendation",
+    "mileage",
+    "days_on_market",
+    "price_change",
+    "price_drop_total",
+    "seller_name",
+    "location_city",
+    "distance_miles",
+    "exterior_color",
+    "interior_color",
+    "title_status",
+    "accident_count",
+    "owner_count",
+    "thumbnail",
+    "cpo",
+    "is_bookmarked",
+    "is_dismissed",
+    "snapshot_count",
+    "score_breakdown",
+    "msrp_discount_pct",
+    "negotiation_leverage_score",
+    "leverage_tier",
+    "market_badges",
+    "cohort_min",
+    "cohort_p25",
+    "cohort_p50",
+    "cohort_p75",
+    "cohort_max",
+    "cohort_percentile",
+)
+
+
+def _compact_deal_for_initial_state(deal: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Project a deal dictionary onto a compact representation for inline SSR hydration.
+
+    Pre-conditions:
+        - deal is a dictionary representing a normalized and optionally enriched listing.
+
+    Post-conditions:
+        - Returns a new dictionary retaining only the scalar and summary fields needed
+          by client-side Deal Workbench rendering and compare tray lookups.
+        - Strips duplicated nested ``analytics``, raw scraper ``raw_data``,
+          ``price_history``/``snapshots`` arrays, and full ``photos`` lists.
+    """
+    compact: Dict[str, Any] = {
+        key: deal[key]
+        for key in _INITIAL_STATE_DEAL_KEYS
+        if key in deal
+    }
+    tax_credit = deal.get("used_ev_tax_credit")
+    if not isinstance(tax_credit, dict) and isinstance(deal.get("analytics"), dict):
+        tax_credit = deal["analytics"].get("used_ev_tax_credit")
+    if isinstance(tax_credit, dict) and "eligible" in tax_credit:
+        compact["used_ev_tax_credit"] = {"eligible": bool(tax_credit.get("eligible"))}
+    return compact
+
+
+def _compact_market_overview_for_initial_state(
+    market_overview: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Compact an optional market_overview payload for inline SSR hydration.
+
+    Pre-conditions:
+        - market_overview is None or a market overview dictionary.
+
+    Post-conditions:
+        - Returns None when market_overview is None.
+        - Compacts any deal records inside ``price_cut_movers`` and ``stale_high_leverage``
+          so duplicated ``analytics`` and ``raw_data`` blobs are never serialized inline.
+    """
+    if market_overview is None or not isinstance(market_overview, dict):
+        return None
+    compacted: Dict[str, Any] = dict(market_overview)
+    for list_key in ("price_cut_movers", "stale_high_leverage"):
+        items = compacted.get(list_key)
+        if isinstance(items, list):
+            compacted[list_key] = [
+                _compact_deal_for_initial_state(item) if isinstance(item, dict) else item
+                for item in items
+            ]
+    return compacted
 
 
 def _esc(val: Any) -> str:
@@ -358,7 +460,9 @@ def render_deals_section(
         for t_key, t_label, t_count in sub_tabs
     ]
 
-    if not deals:
+    visible_deals = deals[:MAX_SSR_DEALS]
+
+    if not visible_deals:
         content_html = """
         <div class="empty-state">
             <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
@@ -369,16 +473,16 @@ def render_deals_section(
         </div>
         """
     elif view_mode == "table":
-        content_html = _render_table_view(deals)
+        content_html = _render_table_view(visible_deals)
     else:
-        content_html = _render_grid_view(deals)
+        content_html = _render_grid_view(visible_deals)
 
     return f"""
     {render_kpis_partial(kpis)}
     <div class="triage-bar">
         <div class="triage-tabs" role="tablist" aria-label="Deal Triage Categories">{''.join(tabs_html)}</div>
         <div class="export-actions">
-            <span class="control-hint">Showing <strong class="tabular-nums">{len(deals)}</strong> vehicles</span>
+            <span class="control-hint">Showing <strong class="tabular-nums">{len(visible_deals)}</strong> vehicles</span>
             <a href="/api/export/csv?{export_qs}" class="btn btn-secondary text-xs" download>Export CSV</a>
             <a href="/api/export/markdown?{export_qs}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary text-xs">Export Markdown</a>
         </div>
@@ -653,18 +757,22 @@ def render_full_dashboard_page(
     else:
         temporal_action_html = ""
 
+    visible_deals = deals[:MAX_SSR_DEALS]
+    compact_deals = [_compact_deal_for_initial_state(d) for d in visible_deals]
+    compact_overview = _compact_market_overview_for_initial_state(market_overview)
+
     initial_state: Dict[str, Any] = {
-        "deals": deals,
+        "deals": compact_deals,
         "kpis": kpis,
         "filters": filters,
         "provenance": provenance,
-        "market_overview": market_overview,
+        "market_overview": compact_overview,
         "search_context": {
             "zip_code": str(settings.search_zip_code),
             "radius_miles": int(settings.search_radius_miles),
         },
     }
-    initial_state_json = json.dumps(initial_state, default=str).replace("</", "<\\/")
+    initial_state_json = json.dumps(initial_state, separators=(",", ":"), default=str).replace("</", "<\\/")
 
     replacements: Dict[str, str] = {
         "{{SEARCH_ZIP}}": _esc(settings.search_zip_code),
@@ -674,7 +782,7 @@ def render_full_dashboard_page(
         "{{WATCHLIST_OPTIONS_HTML}}": "\n".join(watchlist_options),
         "{{TEMPORAL_ACTION_HTML}}": temporal_action_html,
         "{{DEGRADED_BANNER_HTML}}": render_degraded_banner(provenance),
-        "{{INITIAL_DEALS_HTML}}": render_deals_section(deals, kpis, filters),
+        "{{INITIAL_DEALS_HTML}}": render_deals_section(visible_deals, kpis, filters),
         "{{FILTER_TAB}}": _esc(filters.get("tab", "all")),
         "{{FILTER_VIEW}}": _esc(filters.get("view", "grid")),
         "{{FILTER_Q}}": _esc(filters.get("q", "")),

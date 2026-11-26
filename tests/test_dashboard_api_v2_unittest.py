@@ -949,6 +949,79 @@ class TestDashboardAPIV2Unit(unittest.IsolatedAsyncioTestCase):
         # Zero localhost:8080
         self.assertNotIn("localhost:8080", content)
 
+    # 16. Root SSR Payload Compactness & Single-Pass Query Invariant
+    async def test_root_ssr_payload_compactness_under_production_scale(self) -> None:
+        """
+        Verify GET / returns compact HTML (< 512 KB) without bloated raw_data,
+        duplicated analytics dicts, or redundant market_overview database queries
+        even when the repository contains hundreds of production-sized listings.
+
+        Pre-conditions:
+            - Repository seeded with 300 listings containing 5 KB raw scraper blobs.
+
+        Post-conditions:
+            - GET / response body is strictly under 512 KB (524,288 bytes).
+            - Inline initial-state JSON omits raw_data, price_history, and duplicate analytics keys.
+            - KPI total_active reflects the full 300-listing inventory while SSR cards are capped.
+        """
+        base_samples = _sample_deals()
+        large_inventory: List[Dict[str, Any]] = []
+        for idx in range(300):
+            template = dict(base_samples[idx % len(base_samples)])
+            template["id"] = f"00000000-0000-4000-8000-{idx:012d}"
+            template["vin"] = f"W1KCG2DB6PA{idx:06d}"
+            template["raw_data"] = {
+                "make": "Mercedes-Benz",
+                "model": "EQS",
+                "year": 2023,
+                "unpruned_scraper_payload": "X" * 5000,
+            }
+            large_inventory.append(template)
+
+        prod_repo = DashboardRepository(fallback_deals=large_inventory)
+        prod_app = DashboardApp(repo=prod_repo)
+
+        with patch.object(
+            prod_repo,
+            "get_market_overview",
+            wraps=prod_repo.get_market_overview,
+        ) as spy_overview:
+            status, headers, body = await prod_app.handle_request("GET", "/")
+
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertLess(
+            len(body),
+            512 * 1024,
+            f"GET / HTML payload ({len(body)} bytes) exceeded 512 KB threshold",
+        )
+        self.assertEqual(
+            spy_overview.call_count,
+            0,
+            "GET / should not eagerly execute get_market_overview() during root SSR",
+        )
+
+        html_text = body.decode("utf-8")
+        self.assertNotIn("unpruned_scraper_payload", html_text)
+
+        import re
+        match = re.search(
+            r'<script id="initial-state" type="application/json">(.*?)</script>',
+            html_text,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        if match:
+            state_payload = json.loads(match.group(1).replace("<\\/", "</"))
+            self.assertEqual(state_payload["kpis"]["total_active"], 300)
+            self.assertLessEqual(len(state_payload["deals"]), 48)
+            first_deal = state_payload["deals"][0]
+            self.assertNotIn("raw_data", first_deal)
+            self.assertNotIn("analytics", first_deal)
+            self.assertNotIn("price_history", first_deal)
+            self.assertIn("deal_score", first_deal)
+            self.assertIn("price", first_deal)
+
 
 if __name__ == "__main__":
     unittest.main()

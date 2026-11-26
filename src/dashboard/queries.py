@@ -341,6 +341,26 @@ class DashboardRepository:
         is_bookmarked = bool(row.get("is_bookmarked") or raw.get("user_bookmarked", False))
         is_dismissed = bool(row.get("is_dismissed") or raw.get("user_dismissed", False))
 
+        compact_raw: Dict[str, Any] = {}
+        for k in (
+            "make",
+            "model",
+            "year",
+            "trim",
+            "drivetrain",
+            "fuelType",
+            "stockType",
+            "days_on_market",
+            "cpoIndicator",
+            "seller_zip",
+            "user_bookmarked",
+            "user_dismissed",
+        ):
+            if k in raw:
+                compact_raw[k] = raw[k]
+        if seller_zip and "seller_zip" not in compact_raw:
+            compact_raw["seller_zip"] = seller_zip
+
         return {
             "id": str(row.get("id") or row.get("platform_id") or ""),
             "vin": row.get("vin") or "N/A",
@@ -384,7 +404,7 @@ class DashboardRepository:
             "first_seen": row.get("first_seen"),
             "last_seen": row.get("last_seen"),
             "price_history": price_history,
-            "raw_data": raw,
+            "raw_data": compact_raw,
         }
 
     @staticmethod
